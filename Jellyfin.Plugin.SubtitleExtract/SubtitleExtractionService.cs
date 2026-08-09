@@ -158,6 +158,16 @@ public class SubtitleExtractionService
             arguments.Add("-f");
             arguments.Add("matroska");
         }
+        else
+        {
+            var ext = Path.GetExtension(outputPath);
+            if (!string.IsNullOrEmpty(ext) && ext.Length > 1)
+            {
+                var format = ext[1..].ToLowerInvariant();
+                arguments.Add("-f");
+                arguments.Add(format);
+            }
+        }
 
         arguments.Add("-flush_packets");
         arguments.Add("1");
