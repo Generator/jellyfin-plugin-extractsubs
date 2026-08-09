@@ -108,6 +108,8 @@ public class ExtractAttachmentsTask : IScheduledTask
         CancellationToken cancellationToken)
     {
         var libsCount = parentIds.Count > 0 ? parentIds.Count : 1;
+        var config = SubtitleExtractPlugin.Current.Configuration;
+        var workerThreads = Math.Max(1, config.WorkerThreads);
 
         var query = new InternalItemsQuery
         {
@@ -127,43 +129,56 @@ public class ExtractAttachmentsTask : IScheduledTask
         }
 
         var numberOfVideos = _libraryManager.GetCount(query);
+        if (numberOfVideos == 0)
+        {
+            return startProgress + (100d / libsCount);
+        }
 
         var startIndex = 0;
         var completedVideos = 0;
+        var progressLock = new object();
 
         while (startIndex < numberOfVideos)
         {
             query.StartIndex = startIndex;
             var videos = _libraryManager.GetItemList(query);
 
-            foreach (var video in videos)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                foreach (var mediaSource in video.GetMediaSources(false))
+            await Parallel.ForEachAsync(
+                videos,
+                new ParallelOptions
                 {
-                    var streams = mediaSource.MediaStreams.Where(i => i.Type == MediaStreamType.Subtitle).ToList();
-                    var mksStreams = streams.Where(i => !string.IsNullOrEmpty(i.Path) && i.Path.EndsWith(".mks", StringComparison.OrdinalIgnoreCase)).ToList();
-                    var mksPaths = mksStreams.Select(i => i.Path).ToList();
-                    if (mksPaths.Count > 0)
+                    MaxDegreeOfParallelism = workerThreads,
+                    CancellationToken = cancellationToken
+                },
+                async (video, ct) =>
+                {
+                    foreach (var mediaSource in video.GetMediaSources(false))
                     {
-                        foreach (var path in mksPaths)
+                        var streams = mediaSource.MediaStreams.Where(i => i.Type == MediaStreamType.Subtitle).ToList();
+                        var mksStreams = streams.Where(i => !string.IsNullOrEmpty(i.Path) && i.Path.EndsWith(".mks", StringComparison.OrdinalIgnoreCase)).ToList();
+                        var mksPaths = mksStreams.Select(i => i.Path).ToList();
+                        if (mksPaths.Count > 0)
                         {
-                            await _extractor.ExtractAllAttachments(path, mediaSource, cancellationToken).ConfigureAwait(false);
+                            foreach (var path in mksPaths)
+                            {
+                                await _extractor.ExtractAllAttachments(path, mediaSource, ct).ConfigureAwait(false);
+                            }
+                        }
+
+                        if (streams.Count != mksStreams.Count)
+                        {
+                            await _extractor.ExtractAllAttachments(mediaSource.Path, mediaSource, ct).ConfigureAwait(false);
                         }
                     }
 
-                    if (streams.Count != mksStreams.Count)
+                    lock (progressLock)
                     {
-                        await _extractor.ExtractAllAttachments(mediaSource.Path, mediaSource, cancellationToken).ConfigureAwait(false);
+                        completedVideos++;
+
+                        // Report the progress using "startProgress" that allows to track progress across multiple libraries
+                        progress.Report(startProgress + (100d * completedVideos / numberOfVideos / libsCount));
                     }
-                }
-
-                completedVideos++;
-
-                // Report the progress using "startProgress" that allows to track progress across multiple libraries
-                progress.Report(startProgress + (100d * completedVideos / numberOfVideos / libsCount));
-            }
+                }).ConfigureAwait(false);
 
             startIndex += QueryPageLimit;
         }

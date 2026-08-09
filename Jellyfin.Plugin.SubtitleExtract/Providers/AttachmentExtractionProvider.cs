@@ -87,7 +87,11 @@ public class AttachmentExtractionProvider : ICustomMetadataProvider<Episode>,
 
         if (config.ExtractionDuringLibraryScan)
         {
-            _logger.LogDebug("Extracting attachments for: {Video}", item.Path);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Extracting attachments for: {Video}", item.Path);
+            }
+
             foreach (var mediaSource in item.GetMediaSources(false))
             {
                 var streams = mediaSource.MediaStreams.Where(i => i.Type == MediaStreamType.Subtitle).ToList();
@@ -107,7 +111,10 @@ public class AttachmentExtractionProvider : ICustomMetadataProvider<Episode>,
                 }
             }
 
-            _logger.LogDebug("Finished attachment extraction for: {Video}", item.Path);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Finished attachment extraction for: {Video}", item.Path);
+            }
         }
 
         return ItemUpdateType.None;

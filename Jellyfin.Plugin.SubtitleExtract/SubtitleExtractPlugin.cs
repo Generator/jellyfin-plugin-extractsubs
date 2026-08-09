@@ -25,10 +25,10 @@ public class SubtitleExtractPlugin : BasePlugin<PluginConfiguration>, IHasWebPag
     }
 
     /// <inheritdoc />
-    public override string Name => "Subtitle Extract";
+    public override string Name => "Better Subtitle Extractor";
 
     /// <inheritdoc />
-    public override Guid Id => new("CD893C24-B59E-4060-87B2-184070E1BF68");
+    public override Guid Id => new("77BE2143-68BE-4E77-AFC8-82859969038A");
 
     /// <inheritdoc />
     public override string Description => "Extracts embedded subtitles and attachments";
@@ -41,11 +41,17 @@ public class SubtitleExtractPlugin : BasePlugin<PluginConfiguration>, IHasWebPag
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {
-        return [
+        return
+        [
             new PluginPageInfo
             {
-                Name = "Jellyfin subtitle and attachment extractor",
-                EmbeddedResourcePath = GetType().Namespace + ".Configuration.configPage.html"
+                Name = "Better Subtitle Extractor",
+                EmbeddedResourcePath = GetType().Namespace + ".Configuration.Web.config.html"
+            },
+            new PluginPageInfo
+            {
+                Name = "Better Subtitle Extractor.js",
+                EmbeddedResourcePath = GetType().Namespace + ".Configuration.Web.config.js"
             }
         ];
     }

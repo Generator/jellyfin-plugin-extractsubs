@@ -46,6 +46,17 @@ public static class SubtitleStreamFilter
             }
         }
 
+        // SDH / forced exclusion (applied after overrides so explicit overrides still win)
+        if (config.ExcludeSdh && stream.IsHearingImpaired)
+        {
+            return false;
+        }
+
+        if (config.ExcludeForced && stream.IsForced)
+        {
+            return false;
+        }
+
         // Normal filters (all must pass)
 
         // Language filter

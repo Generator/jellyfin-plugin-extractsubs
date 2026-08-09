@@ -1,0 +1,337 @@
+<div data-role="page" id="betterSubtitleExtractorConfigurationPage" class="page type-interior pluginConfigurationPage fullWidthContent"
+     data-controller="__plugin/Better Subtitle Extractor.js">
+    <style>
+        #betterSubtitleExtractorConfigurationPage {
+            /* Color tokens with Jellyfin theme fallbacks */
+            --bse-bg: var(--theme-background, #1a1a2e);
+            --bse-surface: var(--theme-card-background, #16213e);
+            --bse-text: var(--theme-text-color, #e0e0e0);
+            --bse-text-muted: var(--theme-text-color-secondary, #999);
+            --bse-border: rgba(255, 255, 255, 0.1);
+            --bse-accent: var(--theme-primary-color, #00a4dc);
+            --bse-on-accent: #fff;
+            --bse-hover: rgba(255, 255, 255, 0.05);
+            --bse-hover-strong: rgba(255, 255, 255, 0.08);
+            --bse-border-strong: rgba(255, 255, 255, 0.2);
+            --bse-border-muted: rgba(155, 155, 155, 0.5);
+            --bse-input-bg: rgba(255, 255, 255, 0.05);
+            --bse-input-border: rgba(255, 255, 255, 0.15);
+            --bse-input-focus: var(--theme-primary-color, #00a4dc);
+            --bse-error: #f44336;
+            --bse-warning: #ffa500;
+            --bse-success: #4caf50;
+        }
+
+        .bse-tab-button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 10px 16px;
+            border: none;
+            background: transparent;
+            color: var(--bse-text);
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-family: inherit;
+            touch-action: manipulation;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .bse-tab-button:hover {
+            background: var(--bse-hover);
+        }
+
+        .bse-tab-button:focus-visible {
+            outline: 2px solid var(--bse-accent);
+            outline-offset: 2px;
+        }
+
+        .bse-tab-button.tab-active {
+            background: color-mix(in srgb, var(--bse-accent) 15%, transparent);
+            color: var(--bse-accent);
+            font-weight: 600;
+        }
+
+        .bse-section-header {
+            margin: 0 0 0.5em;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--bse-text);
+        }
+
+        .bse-section-desc {
+            margin: 0 0 1em;
+            font-size: 0.9em;
+            color: var(--bse-text-muted);
+            line-height: 1.4;
+        }
+
+        .bse-field-description {
+            font-size: 0.85em;
+            color: var(--bse-text-muted);
+            margin-top: 4px;
+        }
+
+        .bse-field-warning {
+            font-size: 0.85em;
+            color: var(--bse-warning);
+            margin-top: 4px;
+        }
+
+        .bse-list-block {
+            margin: 0.85em 0;
+        }
+
+        .bse-list-label {
+            margin: 0 0 0.35em;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+
+        .bse-check-list {
+            max-height: 16em;
+            overflow: auto;
+            border: 1px solid var(--bse-border);
+            background: var(--bse-input-bg);
+            padding: 0.35em 0;
+        }
+
+        .bse-check-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .bse-check-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .bse-check-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .bse-search-input {
+            margin-bottom: 0.5em;
+            padding: 6px 10px;
+            border: 1px solid var(--bse-input-border);
+            border-radius: 4px;
+            background: var(--bse-input-bg);
+            color: var(--bse-text);
+            font-size: 0.9em;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .bse-search-input:focus {
+            border-color: var(--bse-input-focus);
+            outline: none;
+        }
+
+        .bse-check-list-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            white-space: normal;
+            overflow: visible;
+        }
+
+        .bse-check-list-item:hover {
+            background: var(--bse-hover);
+        }
+
+        .bse-check-list-item.hidden {
+            display: none;
+        }
+
+        .bse-check-list-item .checkboxLabel {
+            margin-left: 30px;
+        }
+
+        .bse-btn-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .bse-action-button {
+            background: var(--bse-accent);
+            color: var(--bse-on-accent);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            touch-action: manipulation;
+        }
+
+        .bse-action-button:hover {
+            opacity: 0.9;
+        }
+
+        .bse-action-button:focus-visible {
+            outline: 2px solid var(--bse-accent);
+            outline-offset: 2px;
+        }
+
+        .bse-master-checkbox {
+            margin-bottom: 0.5em;
+        }
+
+        .bse-grid-container.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .bse-regex-section input[type="text"],
+        .bse-regex-section textarea {
+            width: 100%;
+            font-family: monospace;
+            box-sizing: border-box;
+        }
+
+        .bse-regex-section .inputContainer {
+            margin-bottom: 1em;
+        }
+
+        .bse-worker-section input[type="number"] {
+            width: 80px;
+        }
+
+        .bse-tab-warning {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
+            background: rgba(232, 168, 54, 0.08);
+            border: 1px solid rgba(232, 168, 54, 0.25);
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: var(--bse-warning);
+            line-height: 1.4;
+        }
+
+        .bse-save-footer {
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+            padding: 4px 0;
+            border-top: 1px solid var(--bse-border);
+            background: rgba(28, 28, 30, 0.92);
+            z-index: 10;
+        }
+
+        .bse-dirty-indicator {
+            margin-right: auto;
+            font-size: 0.85em;
+            color: var(--bse-warning);
+            white-space: nowrap;
+        }
+
+        .bse-save-status {
+            margin-right: auto;
+            font-size: 0.85em;
+            color: var(--bse-text-muted);
+        }
+
+        .bse-save-status[data-state="success"] {
+            color: var(--bse-success);
+        }
+
+        .bse-save-status[data-state="error"] {
+            color: var(--bse-error);
+        }
+
+        #saveConfig {
+            touch-action: manipulation;
+        }
+
+        #saveConfig:disabled {
+            opacity: 0.7;
+            cursor: progress;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .bse-tab-button {
+                transition: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .bseTabLayout {
+                grid-template-columns: 1fr !important;
+            }
+            .bseTabNav {
+                flex-direction: row !important;
+                align-items: flex-start;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding-bottom: 4px;
+            }
+            .bseTabNav::-webkit-scrollbar {
+                display: none;
+            }
+            .bse-tab-button {
+                width: auto;
+                min-width: fit-content;
+                min-height: 44px;
+                padding: 10px 14px;
+                flex-shrink: 0;
+                font-size: 0.9em;
+            }
+            .bse-tab-button.tab-active {
+                background: var(--bse-accent);
+                color: var(--bse-on-accent);
+                border-radius: 20px;
+            }
+            .bseTabContent {
+                overflow-x: hidden;
+            }
+            input[type="text"],
+            input[type="number"],
+            textarea {
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .inputContainer input,
+            .inputContainer textarea {
+                width: 100%;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+
+    <div class="content-primary">
+        <div class="verticalSection">
+            <div class="sectionTitleContainer">
+                <h2 class="sectionTitle">Better Subtitle Extractor</h2>
+            </div>
+        </div>
+
+        <div class="bseTabLayout" style="display:grid;grid-template-columns:180px 1fr;gap:24px;min-height:60vh;">
+            <nav class="bseTabNav" id="bseTabNav" aria-label="Settings Sections" style="display:flex;flex-direction:column;gap:4px;padding-top:8px;"></nav>
+            <main class="bseTabContent" id="bseTabContent" tabindex="-1" style="padding:8px 0;"></main>
+        </div>
+
+        <div id="tabWarningBanner" class="bse-tab-warning" role="status" style="display:none;">
+            <span style="flex-shrink:0;">&#x26A0;</span>
+            <span>You have unsaved changes. Remember to save before leaving.</span>
+        </div>
+
+        <div class="bse-save-footer" aria-label="Save controls">
+            <span id="dirtyIndicator" class="bse-dirty-indicator" aria-live="polite" style="display:none;">&#x25cf; Unsaved changes</span>
+            <span id="saveStatus" class="bse-save-status" aria-live="polite" aria-atomic="true" style="display:none;"></span>
+            <button id="saveConfig" is="emby-button" type="button" class="raised button-submit" aria-label="Save configuration">
+                <span>Save</span>
+            </button>
+        </div>
+    </div>
+</div>

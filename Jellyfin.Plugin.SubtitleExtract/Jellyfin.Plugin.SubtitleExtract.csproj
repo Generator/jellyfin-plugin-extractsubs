@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
@@ -9,7 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.*-*" />
+    <PackageReference Include="Jellyfin.Controller" Version="12.*-*" />
+    <PackageReference Include="Jellyfin.Data" Version="12.*-*" />
     <PackageReference Include="DynamicExpresso.Core" Version="2.*" />
   </ItemGroup>
 
@@ -20,7 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Configuration\configPage.html" />
+    <None Remove="Configuration\Web\config.html" />
+    <EmbeddedResource Include="Configuration\Web\config.html" />
+    <None Remove="Configuration\Web\config.js" />
+    <EmbeddedResource Include="Configuration\Web\config.js" />
   </ItemGroup>
 
 </Project>

@@ -8,7 +8,6 @@ using Jellyfin.Extensions;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.Tasks;
@@ -24,7 +23,7 @@ public class ExtractSubtitlesTask : IScheduledTask
 
     private readonly ILibraryManager _libraryManager;
     private readonly ILocalizationManager _localization;
-    private readonly ISubtitleEncoder _encoder;
+    private readonly SubtitleExtractionService _extractionService;
 
     private static readonly BaseItemKind[] _itemTypes = [BaseItemKind.Episode, BaseItemKind.Movie];
     private static readonly MediaType[] _mediaTypes = [MediaType.Video];
@@ -35,16 +34,16 @@ public class ExtractSubtitlesTask : IScheduledTask
     /// Initializes a new instance of the <see cref="ExtractSubtitlesTask" /> class.
     /// </summary>
     /// <param name="libraryManager">Instance of <see cref="ILibraryManager"/> interface.</param>
-    /// <param name="subtitleEncoder"><see cref="ISubtitleEncoder"/> instance.</param>
+    /// <param name="extractionService"><see cref="SubtitleExtractionService"/> instance.</param>
     /// <param name="localization">Instance of <see cref="ILocalizationManager"/> interface.</param>
     public ExtractSubtitlesTask(
         ILibraryManager libraryManager,
-        ISubtitleEncoder subtitleEncoder,
+        SubtitleExtractionService extractionService,
         ILocalizationManager localization)
     {
         _libraryManager = libraryManager;
         _localization = localization;
-        _encoder = subtitleEncoder;
+        _extractionService = extractionService;
     }
 
     /// <inheritdoc />
@@ -108,10 +107,12 @@ public class ExtractSubtitlesTask : IScheduledTask
         var config = SubtitleExtractPlugin.Current.Configuration;
         var workerThreads = Math.Max(1, config.WorkerThreads);
 
+        // Note: HasSubtitles is intentionally NOT set here. The server strips embedded subtitle
+        // streams from the database when AllowEmbeddedSubtitles is disabled, so filtering on
+        // HasSubtitles would skip every item. The extraction service probes each file directly.
         var query = new InternalItemsQuery
         {
             Recursive = true,
-            HasSubtitles = true,
             IsVirtualItem = false,
             IncludeItemTypes = _itemTypes,
             DtoOptions = _dtoOptions,
@@ -148,14 +149,7 @@ public class ExtractSubtitlesTask : IScheduledTask
                 },
                 async (video, ct) =>
                 {
-                    foreach (var mediaSource in video.GetMediaSources(false))
-                    {
-                        var filtered = SubtitleStreamFilter.FilterMediaSource(mediaSource, config);
-                        if (filtered is not null)
-                        {
-                            await _encoder.ExtractAllExtractableSubtitles(filtered, ct).ConfigureAwait(false);
-                        }
-                    }
+                    await _extractionService.ExtractSubtitlesAsync(video, ct).ConfigureAwait(false);
 
                     var completed = Interlocked.Increment(ref completedVideos);
                     progress.Report(startProgress + (100d * completed / numberOfVideos / libsCount));

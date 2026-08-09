@@ -1,5 +1,5 @@
-<h1 align="center">Subtitle Extract for Jellyfin Plugin</h1>
-<h3 align="center">Part of the <a href="https://jellyfin.org">Jellyfin Project</a></h3>
+<h1 align="center">Better Subtitle Extractor for Jellyfin Plugin</h1>
+<h3 align="center">Fork of the <a href="https://jellyfin.org">Jellyfin Project</a> subtitle extract plugin</h3>
 
 <p align="center">
 <img alt="Plugin Banner" src="https://raw.githubusercontent.com/jellyfin/jellyfin-ux/master/plugins/SVG/jellyfin-plugin-subtitleextract.svg?sanitize=true"/>
@@ -18,7 +18,7 @@
 
 ## About
 
-Plugin to automatically extract embedded subtitles.
+Plugin to automatically extract embedded subtitles and attachments.
 
 ## Installation
 

@@ -201,4 +201,24 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the number of worker threads for parallel subtitle extraction.
     /// </summary>
     public int WorkerThreads { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to include the "default" marker in external subtitle file names.
+    /// </summary>
+    public bool IncludeDefaultMarker { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to skip hearing-impaired (SDH) subtitle streams.
+    /// </summary>
+    public bool ExcludeSdh { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to skip forced subtitle streams.
+    /// </summary>
+    public bool ExcludeForced { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to overwrite existing external subtitle files.
+    /// </summary>
+    public bool OverwriteExisting { get; set; } = false;
 }

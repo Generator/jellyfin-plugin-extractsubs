@@ -1,10 +1,10 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -22,19 +22,19 @@ public class SubtitleExtractionProvider : ICustomMetadataProvider<Episode>,
 {
     private readonly ILogger<SubtitleExtractionProvider> _logger;
 
-    private readonly ISubtitleEncoder _encoder;
+    private readonly SubtitleExtractionService _extractionService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubtitleExtractionProvider"/> class.
     /// </summary>
-    /// <param name="subtitleEncoder"><see cref="ISubtitleEncoder"/> instance.</param>
+    /// <param name="extractionService"><see cref="SubtitleExtractionService"/> instance.</param>
     /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
     public SubtitleExtractionProvider(
-        ISubtitleEncoder subtitleEncoder,
+        SubtitleExtractionService extractionService,
         ILogger<SubtitleExtractionProvider> logger)
     {
         _logger = logger;
-        _encoder = subtitleEncoder;
+        _extractionService = extractionService;
     }
 
     /// <inheritdoc />
@@ -83,18 +83,24 @@ public class SubtitleExtractionProvider : ICustomMetadataProvider<Episode>,
         var config = SubtitleExtractPlugin.Current!.Configuration;
         if (config.ExtractionDuringLibraryScan)
         {
-            _logger.LogDebug("Extracting subtitles for: {Video}", item.Path);
-
-            foreach (var mediaSource in item.GetMediaSources(false))
+            if (_logger.IsEnabled(LogLevel.Debug))
             {
-                var filtered = SubtitleStreamFilter.FilterMediaSource(mediaSource, config);
-                if (filtered is not null)
-                {
-                    await _encoder.ExtractAllExtractableSubtitles(filtered, cancellationToken).ConfigureAwait(false);
-                }
+                _logger.LogDebug("Extracting subtitles for: {Video}", item.Path);
             }
 
-            _logger.LogDebug("Finished subtitle extraction for: {Video}", item.Path);
+            try
+            {
+                await _extractionService.ExtractSubtitlesAsync(item, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Subtitle extraction failed for: {Video}", item.Path);
+            }
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Finished subtitle extraction for: {Video}", item.Path);
+            }
         }
 
         return ItemUpdateType.None;
