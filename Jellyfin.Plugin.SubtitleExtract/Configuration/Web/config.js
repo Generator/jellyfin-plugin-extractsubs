@@ -423,7 +423,11 @@ function betterSubtitleExtractorController(view) {
     function switchTab(tabId) {
         // Persist edits from the outgoing tab before the DOM is discarded.
         const content = document.getElementById("bseTabContent");
-        if (content && content.childElementCount > 0) {
+        if (!content) {
+            return;
+        }
+
+        if (content.childElementCount > 0) {
             currentConfig = gatherConfig();
         }
 
@@ -649,34 +653,55 @@ function betterSubtitleExtractorController(view) {
     }
 
     /*** Event wiring ***/
-    // Wire up change listeners for dirty tracking (registered once per dashboard session)
-    document.addEventListener("change", (e) => {
-        if (e.target.closest("#bseTabContent")) markDirty();
-    });
-    document.addEventListener("input", (e) => {
-        if (e.target.closest("#bseTabContent")) markDirty();
-    });
+    let changeHandler = null;
+    let inputHandler = null;
+    let beforeUnloadHandler = null;
 
-    // Warn before leaving with unsaved changes
-    window.addEventListener("beforeunload", (e) => {
-        if (isDirty) {
-            e.preventDefault();
-            e.returnValue = "";
-        }
-    });
-
-    // Bind the save button once the view is attached (guarded against duplicate viewshow events)
-    let saveBound = false;
     view.addEventListener("viewshow", async function () {
-        if (!saveBound) {
-            view.querySelector("#saveConfig")?.addEventListener("click", async function (e) {
+        // Wire up change listeners for dirty tracking
+        changeHandler = (e) => {
+            if (e.target.closest("#bseTabContent")) markDirty();
+        };
+        document.addEventListener("change", changeHandler);
+
+        inputHandler = (e) => {
+            if (e.target.closest("#bseTabContent")) markDirty();
+        };
+        document.addEventListener("input", inputHandler);
+
+        // Warn before leaving with unsaved changes
+        beforeUnloadHandler = (e) => {
+            if (isDirty) {
                 e.preventDefault();
-                await saveConfig();
-            });
-            saveBound = true;
-        }
+                e.returnValue = "";
+            }
+        };
+        window.addEventListener("beforeunload", beforeUnloadHandler);
+
+        // Bind the save button once the view is attached
+        view.querySelector("#saveConfig")?.addEventListener("click", async function (e) {
+            e.preventDefault();
+            await saveConfig();
+        });
 
         await init();
+    });
+
+    view.addEventListener("viewdestroy", function () {
+        if (changeHandler) {
+            document.removeEventListener("change", changeHandler);
+            changeHandler = null;
+        }
+
+        if (inputHandler) {
+            document.removeEventListener("input", inputHandler);
+            inputHandler = null;
+        }
+
+        if (beforeUnloadHandler) {
+            window.removeEventListener("beforeunload", beforeUnloadHandler);
+            beforeUnloadHandler = null;
+        }
     });
 }
 

@@ -10,7 +10,9 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.SubtitleExtract.Configuration;
 using MediaBrowser.Common;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Dlna;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
@@ -35,7 +37,8 @@ public class SubtitleExtractionService
     private readonly IMediaEncoder _mediaEncoder;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<SubtitleExtractionService> _logger;
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _pathLocks = new();
+    private readonly ConcurrentDictionary<string, PathLockEntry> _pathLocks = new();
+    private readonly ILibraryManager _libraryManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubtitleExtractionService"/> class.
@@ -43,14 +46,17 @@ public class SubtitleExtractionService
     /// <param name="mediaEncoder">Instance of <see cref="IMediaEncoder"/> interface.</param>
     /// <param name="localization">Instance of <see cref="ILocalizationManager"/> interface.</param>
     /// <param name="logger">Instance of <see cref="ILogger"/> interface.</param>
+    /// <param name="libraryManager">Instance of <see cref="ILibraryManager"/> interface.</param>
     public SubtitleExtractionService(
         IMediaEncoder mediaEncoder,
         ILocalizationManager localization,
-        ILogger<SubtitleExtractionService> logger)
+        ILogger<SubtitleExtractionService> logger,
+        ILibraryManager libraryManager)
     {
         _mediaEncoder = mediaEncoder;
         _localization = localization;
         _logger = logger;
+        _libraryManager = libraryManager;
     }
 
     /// <summary>
@@ -69,11 +75,11 @@ public class SubtitleExtractionService
 
         // Serialize concurrent extractions for the same media path so only one caller
         // publishes each subtitle file, while different paths remain independent.
-        var pathLock = _pathLocks.GetOrAdd(item.Path, _ => new SemaphoreSlim(1, 1));
+        var pathLock = AcquirePathLock(item.Path);
         await pathLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var mediaInfo = await ProbeAsync(item.Path, cancellationToken).ConfigureAwait(false);
+            var mediaInfo = await ProbeAsync(item.Path, item, cancellationToken).ConfigureAwait(false);
             if (mediaInfo is null)
             {
                 return;
@@ -97,10 +103,11 @@ public class SubtitleExtractionService
         finally
         {
             pathLock.Release();
+            ReleasePathLock(item.Path);
         }
     }
 
-    private async Task<MediaInfo?> ProbeAsync(string path, CancellationToken cancellationToken)
+    private async Task<MediaInfo?> ProbeAsync(string path, BaseItem item, CancellationToken cancellationToken)
     {
         var request = new MediaInfoRequest
         {
@@ -113,7 +120,50 @@ public class SubtitleExtractionService
             ExtractChapters = false
         };
 
-        return await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
+        var mediaInfo = await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
+
+        // Respect the library's AllowEmbeddedSubtitles setting so we do not
+        // unintentionally override Jellyfin's configuration.
+        if (mediaInfo is not null)
+        {
+            var libraryOptions = _libraryManager.GetLibraryOptions(item);
+            if (libraryOptions.AllowEmbeddedSubtitles != EmbeddedSubtitleOptions.AllowAll)
+            {
+                mediaInfo.MediaStreams = mediaInfo.MediaStreams
+                    .Where(s => s.Type != MediaStreamType.Subtitle || IsSubtitleAllowed(s, libraryOptions.AllowEmbeddedSubtitles))
+                    .ToArray();
+            }
+        }
+
+        return mediaInfo;
+    }
+
+    private static bool IsSubtitleAllowed(MediaStream stream, EmbeddedSubtitleOptions options)
+    {
+        if (options == EmbeddedSubtitleOptions.AllowNone)
+        {
+            return false;
+        }
+
+        if (options == EmbeddedSubtitleOptions.AllowText)
+        {
+            return !IsImageBasedSubtitle(stream);
+        }
+
+        if (options == EmbeddedSubtitleOptions.AllowImage)
+        {
+            return IsImageBasedSubtitle(stream);
+        }
+
+        return true;
+    }
+
+    private static bool IsImageBasedSubtitle(MediaStream stream)
+    {
+        return string.Equals(stream.Codec, "pgssub", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(stream.Codec, "dvdsub", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(stream.Codec, "vobsub", StringComparison.OrdinalIgnoreCase)
+            || MediaStream.IsVobSubFormat(stream.Codec);
     }
 
     private async Task ExtractStreamAsync(
@@ -138,8 +188,8 @@ public class SubtitleExtractionService
 
         // Write to a unique temporary file first, then atomically publish it to the final
         // path so a failed or interrupted extraction never leaves a partial subtitle behind.
-        var tempPath = outputPath + ".tmp";
-        var outputCodec = IsCodecCopyable(stream.Codec) ? "copy" : "srt";
+        var tempPath = string.Format(CultureInfo.InvariantCulture, "{0}.{1}.tmp", outputPath, Guid.NewGuid().ToString("N"));
+        var outputCodec = IsCodecCopyable(stream.Codec) ? "copy" : GetOutputCodec(stream.Codec);
         var arguments = new List<string>
         {
             "-y",
@@ -158,15 +208,10 @@ public class SubtitleExtractionService
             arguments.Add("-f");
             arguments.Add("matroska");
         }
-        else
+        else if (!IsCodecCopyable(stream.Codec) && !string.Equals(outputCodec, "srt", StringComparison.OrdinalIgnoreCase))
         {
-            var ext = Path.GetExtension(outputPath);
-            if (!string.IsNullOrEmpty(ext) && ext.Length > 1)
-            {
-                var format = ext[1..].ToLowerInvariant();
-                arguments.Add("-f");
-                arguments.Add(format);
-            }
+            arguments.Add("-f");
+            arguments.Add(outputCodec);
         }
 
         arguments.Add("-flush_packets");
@@ -194,7 +239,7 @@ public class SubtitleExtractionService
                     File.Delete(tempPath);
                 }
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 _logger.LogError(ex, "Failed to delete partial subtitle file {TempPath}", tempPath);
             }
@@ -289,5 +334,93 @@ public class SubtitleExtractionService
             || string.Equals(codec, "pgssub", StringComparison.OrdinalIgnoreCase)
             || string.Equals(codec, "dvbsub", StringComparison.OrdinalIgnoreCase)
             || MediaStream.IsVobSubFormat(codec);
+    }
+
+    private static string GetOutputCodec(string? codec)
+    {
+        if (string.Equals(codec, "ass", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(codec, "ssa", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ass";
+        }
+
+        if (string.Equals(codec, "webvtt", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(codec, "vtt", StringComparison.OrdinalIgnoreCase))
+        {
+            return "webvtt";
+        }
+
+        if (string.Equals(codec, "srt", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(codec, "subrip", StringComparison.OrdinalIgnoreCase))
+        {
+            return "srt";
+        }
+
+        // For other text-based codecs, convert to SRT.
+        if (!IsImageBasedSubtitleCodec(codec))
+        {
+            return "srt";
+        }
+
+        throw new NotSupportedException(string.Format(CultureInfo.InvariantCulture, "Unsupported subtitle codec: {0}", codec));
+    }
+
+    private static bool IsImageBasedSubtitleCodec(string? codec)
+    {
+        return string.Equals(codec, "pgssub", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(codec, "dvdsub", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(codec, "dvbsub", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(codec, "vobsub", StringComparison.OrdinalIgnoreCase)
+            || MediaStream.IsVobSubFormat(codec);
+    }
+
+    private SemaphoreSlim AcquirePathLock(string path)
+    {
+        var entry = _pathLocks.GetOrAdd(path, _ => new PathLockEntry());
+        entry.IncrementReference();
+        return entry.Semaphore;
+    }
+
+    private void ReleasePathLock(string path)
+    {
+        if (_pathLocks.TryGetValue(path, out var entry))
+        {
+            if (entry.DecrementReference())
+            {
+                if (_pathLocks.TryRemove(path, out var removedEntry) && ReferenceEquals(removedEntry, entry))
+                {
+                    removedEntry.Dispose();
+                }
+            }
+        }
+    }
+
+    private sealed class PathLockEntry : IDisposable
+    {
+        private readonly SemaphoreSlim _semaphore;
+        private int _referenceCount;
+
+        public PathLockEntry()
+        {
+            _semaphore = new SemaphoreSlim(1, 1);
+            _referenceCount = 1;
+        }
+
+        public SemaphoreSlim Semaphore => _semaphore;
+
+        public void IncrementReference()
+        {
+            Interlocked.Increment(ref _referenceCount);
+        }
+
+        public bool DecrementReference()
+        {
+            return Interlocked.Decrement(ref _referenceCount) == 0;
+        }
+
+        public void Dispose()
+        {
+            _semaphore.Dispose();
+        }
     }
 }
