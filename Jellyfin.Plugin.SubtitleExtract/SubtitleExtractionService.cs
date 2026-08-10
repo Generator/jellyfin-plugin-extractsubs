@@ -8,8 +8,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.SubtitleExtract.Configuration;
+using Jellyfin.Plugin.SubtitleExtract.Events;
 using MediaBrowser.Common;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Events;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Model.Configuration;
@@ -39,6 +41,7 @@ public class SubtitleExtractionService
     private readonly ILogger<SubtitleExtractionService> _logger;
     private readonly ConcurrentDictionary<string, PathLockEntry> _pathLocks = new();
     private readonly ILibraryManager _libraryManager;
+    private readonly IEventManager _eventManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubtitleExtractionService"/> class.
@@ -47,16 +50,19 @@ public class SubtitleExtractionService
     /// <param name="localization">Instance of <see cref="ILocalizationManager"/> interface.</param>
     /// <param name="logger">Instance of <see cref="ILogger"/> interface.</param>
     /// <param name="libraryManager">Instance of <see cref="ILibraryManager"/> interface.</param>
+    /// <param name="eventManager">Instance of <see cref="IEventManager"/> interface.</param>
     public SubtitleExtractionService(
         IMediaEncoder mediaEncoder,
         ILocalizationManager localization,
         ILogger<SubtitleExtractionService> logger,
-        ILibraryManager libraryManager)
+        ILibraryManager libraryManager,
+        IEventManager eventManager)
     {
         _mediaEncoder = mediaEncoder;
         _localization = localization;
         _logger = logger;
         _libraryManager = libraryManager;
+        _eventManager = eventManager;
     }
 
     /// <summary>
@@ -97,7 +103,7 @@ public class SubtitleExtractionService
 
             foreach (var stream in streams)
             {
-                await ExtractStreamAsync(mediaInfo, stream, config, cancellationToken).ConfigureAwait(false);
+                await ExtractStreamAsync(item, mediaInfo, stream, config, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -167,6 +173,7 @@ public class SubtitleExtractionService
     }
 
     private async Task ExtractStreamAsync(
+        BaseItem item,
         MediaSourceInfo mediaSource,
         MediaStream stream,
         PluginConfiguration config,
@@ -230,7 +237,7 @@ public class SubtitleExtractionService
 
             File.Move(tempPath, outputPath, true);
         }
-        catch
+        catch (Exception ex)
         {
             try
             {
@@ -239,11 +246,13 @@ public class SubtitleExtractionService
                     File.Delete(tempPath);
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException)
             {
-                _logger.LogError(ex, "Failed to delete partial subtitle file {TempPath}", tempPath);
+                _logger.LogError(cleanupEx, "Failed to delete partial subtitle file {TempPath}", tempPath);
             }
 
+            _logger.LogError(ex, "Subtitle extraction failed for {Video}", mediaSource.Path);
+            await _eventManager.PublishAsync(new SubtitleExtractionFailedEventArgs(item, stream, outputPath, ex)).ConfigureAwait(false);
             throw;
         }
 
