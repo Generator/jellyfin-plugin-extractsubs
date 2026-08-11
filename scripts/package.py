@@ -14,7 +14,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ARTIFACTS = ROOT / "artifacts"
-CSPROJ = ROOT / "Jellyfin.Plugin.SubtitleExtract.csproj"
+CSPROJ = ROOT / "Jellyfin.Plugin.SubtitleExtract" / "Jellyfin.Plugin.SubtitleExtract.csproj"
 # Note: This script is in scripts/, but CSPROJ is in the repo root
 
 PLUGIN_GUID = "77BE2143-68BE-4E77-AFC8-82859969038A"
