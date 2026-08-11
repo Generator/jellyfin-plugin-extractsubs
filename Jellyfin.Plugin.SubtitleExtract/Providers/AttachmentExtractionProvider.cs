@@ -51,6 +51,8 @@ public class AttachmentExtractionProvider : ICustomMetadataProvider<Episode>,
     /// <inheritdoc/>
     public bool HasChanged(BaseItem item, IDirectoryService directoryService)
     {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(directoryService);
         if (item.IsFileProtocol)
         {
             var file = directoryService.GetFile(item.Path);
@@ -66,23 +68,27 @@ public class AttachmentExtractionProvider : ICustomMetadataProvider<Episode>,
     /// <inheritdoc/>
     public Task<ItemUpdateType> FetchAsync(Episode item, MetadataRefreshOptions options, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(item);
         return FetchAttachments(item, cancellationToken);
     }
 
     /// <inheritdoc/>
     public Task<ItemUpdateType> FetchAsync(Movie item, MetadataRefreshOptions options, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(item);
         return FetchAttachments(item, cancellationToken);
     }
 
     /// <inheritdoc/>
     public Task<ItemUpdateType> FetchAsync(Video item, MetadataRefreshOptions options, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(item);
         return FetchAttachments(item, cancellationToken);
     }
 
     private async Task<ItemUpdateType> FetchAttachments(BaseItem item, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(item);
         var config = SubtitleExtractPlugin.Current!.Configuration;
 
         if (config.ExtractionDuringLibraryScan)

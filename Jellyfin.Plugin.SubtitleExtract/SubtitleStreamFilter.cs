@@ -23,6 +23,8 @@ public static class SubtitleStreamFilter
     /// <returns>True if the stream should be extracted.</returns>
     public static bool ShouldExtractStream(MediaStream stream, PluginConfiguration config)
     {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(config);
         var language = string.IsNullOrEmpty(stream.Language) ? "und" : stream.Language;
         var codec = stream.Codec ?? string.Empty;
         var title = stream.Title ?? string.Empty;
@@ -139,6 +141,8 @@ public static class SubtitleStreamFilter
     /// <returns>The media source with filtered streams, or null if no subtitles match.</returns>
     public static MediaSourceInfo? FilterMediaSource(MediaSourceInfo source, PluginConfiguration config)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(config);
         var nonSubStreams = source.MediaStreams
             .Where(s => s.Type != MediaStreamType.Subtitle)
             .ToList();
@@ -166,7 +170,7 @@ public static class SubtitleStreamFilter
             interpreter.SetVariable("TITLE", title);
             return interpreter.Eval<bool>(expression);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Invalid expression from user input; treat as non-matching
             return false;

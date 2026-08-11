@@ -80,6 +80,7 @@ public class SubtitleExtractionProvider : ICustomMetadataProvider<Episode>,
 
     private async Task<ItemUpdateType> FetchSubtitles(BaseItem item, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(item);
         var config = SubtitleExtractPlugin.Current!.Configuration;
         if (config.ExtractionDuringLibraryScan)
         {

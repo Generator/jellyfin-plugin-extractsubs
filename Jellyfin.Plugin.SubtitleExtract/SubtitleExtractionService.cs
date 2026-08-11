@@ -73,6 +73,7 @@ public class SubtitleExtractionService
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public async Task ExtractSubtitlesAsync(BaseItem item, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(item);
         var config = SubtitleExtractPlugin.Current!.Configuration;
         if (!item.IsFileProtocol)
         {
@@ -81,11 +82,11 @@ public class SubtitleExtractionService
 
         // Serialize concurrent extractions for the same media path so only one caller
         // publishes each subtitle file, while different paths remain independent.
-        var pathLock = AcquirePathLock(item.Path);
+        var pathLock = this.AcquirePathLock(item.Path);
         await pathLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var mediaInfo = await ProbeAsync(item.Path, item, cancellationToken).ConfigureAwait(false);
+            var mediaInfo = await this.ProbeAsync(item.Path, item, cancellationToken).ConfigureAwait(false);
             if (mediaInfo is null)
             {
                 return;
@@ -103,13 +104,13 @@ public class SubtitleExtractionService
 
             foreach (var stream in streams)
             {
-                await ExtractStreamAsync(item, mediaInfo, stream, config, cancellationToken).ConfigureAwait(false);
+                await this.ExtractStreamAsync(item, mediaInfo, stream, config, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
         {
             pathLock.Release();
-            ReleasePathLock(item.Path);
+            this.ReleasePathLock(item.Path);
         }
     }
 
@@ -120,10 +121,10 @@ public class SubtitleExtractionService
             MediaSource = new MediaSourceInfo
             {
                 Path = path,
-                Protocol = MediaProtocol.File
+                Protocol = MediaProtocol.File,
             },
             MediaType = DlnaProfileType.Video,
-            ExtractChapters = false
+            ExtractChapters = false,
         };
 
         var mediaInfo = await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
@@ -179,6 +180,9 @@ public class SubtitleExtractionService
         PluginConfiguration config,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(mediaSource);
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(config);
         var outputPath = Path.Combine(
             Path.GetDirectoryName(mediaSource.Path)!,
             ExternalSubtitleNaming.BuildFileName(mediaSource.Path, stream, config, _localization));
@@ -212,7 +216,7 @@ public class SubtitleExtractionService
             "-an",
             "-vn",
             "-c:s",
-            outputCodec
+            outputCodec,
         };
 
         if (MediaStream.IsVobSubFormat(stream.Codec))
@@ -237,7 +241,7 @@ public class SubtitleExtractionService
 
         try
         {
-            await RunFfmpegAsync(arguments, cancellationToken).ConfigureAwait(false);
+            await this.RunFfmpegAsync(arguments, cancellationToken).ConfigureAwait(false);
 
             var fileInfo = new FileInfo(tempPath);
             if (!fileInfo.Exists || fileInfo.Length == 0)
@@ -284,9 +288,9 @@ public class SubtitleExtractionService
                 RedirectStandardError = true,
                 FileName = _mediaEncoder.EncoderPath,
                 WindowStyle = ProcessWindowStyle.Hidden,
-                ErrorDialog = false
+                ErrorDialog = false,
             },
-            EnableRaisingEvents = true
+            EnableRaisingEvents = true,
         };
 
         process.StartInfo.ArgumentList.Add("-nostdin");
@@ -406,9 +410,17 @@ public class SubtitleExtractionService
         {
             if (entry.DecrementReference())
             {
-                if (_pathLocks.TryRemove(path, out var removedEntry) && ReferenceEquals(removedEntry, entry))
+                PathLockEntry? removedEntry = null;
+                try
                 {
-                    removedEntry.Dispose();
+                    if (_pathLocks.TryRemove(path, out var foundEntry) && ReferenceEquals(foundEntry, entry))
+                    {
+                        removedEntry = foundEntry;
+                    }
+                }
+                finally
+                {
+                    removedEntry?.Dispose();
                 }
             }
         }

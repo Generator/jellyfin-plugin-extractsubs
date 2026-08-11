@@ -123,7 +123,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets a value indicating whether to extract subtitles and attachments during library scan.
     /// </summary>
-    public bool ExtractionDuringLibraryScan { get; set; } = false;
+    public bool ExtractionDuringLibraryScan { get; set; }
 
     /// <summary>
     /// Gets or sets the list of selected libraries to extract subtitles from (empty means all).

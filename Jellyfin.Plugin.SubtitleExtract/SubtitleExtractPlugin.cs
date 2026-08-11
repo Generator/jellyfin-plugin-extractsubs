@@ -46,12 +46,12 @@ public class SubtitleExtractPlugin : BasePlugin<PluginConfiguration>, IHasWebPag
             new PluginPageInfo
             {
                 Name = "Better Subtitle Extractor",
-                EmbeddedResourcePath = GetType().Namespace + ".Configuration.Web.config.html"
+                EmbeddedResourcePath = GetType().Namespace + ".Configuration.Web.config.html",
             },
             new PluginPageInfo
             {
                 Name = "Better Subtitle Extractor.js",
-                EmbeddedResourcePath = GetType().Namespace + ".Configuration.Web.config.js"
+                EmbeddedResourcePath = GetType().Namespace + ".Configuration.Web.config.js",
             }
         ];
     }

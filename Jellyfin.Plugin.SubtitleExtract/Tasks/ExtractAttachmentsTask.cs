@@ -68,6 +68,7 @@ public class ExtractAttachmentsTask : IScheduledTask
     /// <inheritdoc />
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(progress);
         var startProgress = 0d;
 
         var config = SubtitleExtractPlugin.Current.Configuration;
@@ -103,11 +104,11 @@ public class ExtractAttachmentsTask : IScheduledTask
     private async Task<double> RunExtractionWithProgress(
         IProgress<double> progress,
         Guid? parentId,
-        IReadOnlyCollection<Guid> parentIds,
+        Guid[] parentIds,
         double startProgress,
         CancellationToken cancellationToken)
     {
-        var libsCount = parentIds.Count > 0 ? parentIds.Count : 1;
+        var libsCount = parentIds.Length > 0 ? parentIds.Length : 1;
         var config = SubtitleExtractPlugin.Current.Configuration;
         var workerThreads = Math.Max(1, config.WorkerThreads);
 
@@ -148,7 +149,7 @@ public class ExtractAttachmentsTask : IScheduledTask
                 new ParallelOptions
                 {
                     MaxDegreeOfParallelism = workerThreads,
-                    CancellationToken = cancellationToken
+                    CancellationToken = cancellationToken,
                 },
                 async (video, ct) =>
                 {
