@@ -27,13 +27,13 @@ jobs:
           dotnet-version: ${{ matrix.dotnet-version }}
 
       - name: Build Plugin
-        run: dotnet build -c Release Jellyfin.Plugin.SubtitleExtract.csproj
+        run: dotnet build -c Release Jellyfin.Plugin.SubtitleExtract/Jellyfin.Plugin.SubtitleExtract.csproj
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: plugin-build-net${{ matrix.dotnet-version }}
           path: |
-            bin/Release/net*/Jellyfin.Plugin.SubtitleExtract.dll
-            bin/Release/net*/Jellyfin.Plugin.SubtitleExtract.pdb
+            Jellyfin.Plugin.SubtitleExtract/bin/Release/net*/Jellyfin.Plugin.SubtitleExtract.dll
+            Jellyfin.Plugin.SubtitleExtract/bin/Release/net*/Jellyfin.Plugin.SubtitleExtract.pdb
           retention-days: 14
