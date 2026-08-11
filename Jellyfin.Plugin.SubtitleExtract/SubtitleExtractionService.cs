@@ -197,6 +197,11 @@ public class SubtitleExtractionService
         // path so a failed or interrupted extraction never leaves a partial subtitle behind.
         var tempPath = string.Format(CultureInfo.InvariantCulture, "{0}.{1}.tmp", outputPath, Guid.NewGuid().ToString("N"));
         var outputCodec = IsCodecCopyable(stream.Codec) ? "copy" : GetOutputCodec(stream.Codec);
+        if (config.ConvertToSrt && !IsImageBasedSubtitleCodec(stream.Codec))
+        {
+            outputCodec = "srt";
+        }
+
         var arguments = new List<string>
         {
             "-y",
@@ -214,6 +219,11 @@ public class SubtitleExtractionService
         {
             arguments.Add("-f");
             arguments.Add("matroska");
+        }
+        else if (config.ConvertToSrt && !IsImageBasedSubtitleCodec(stream.Codec))
+        {
+            arguments.Add("-f");
+            arguments.Add("srt");
         }
         else if (!IsCodecCopyable(stream.Codec) && !string.Equals(outputCodec, "srt", StringComparison.OrdinalIgnoreCase))
         {

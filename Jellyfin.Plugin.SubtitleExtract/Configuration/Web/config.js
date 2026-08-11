@@ -414,6 +414,18 @@ function betterSubtitleExtractorController(view) {
                     <span class="bse-field-description">When enabled, existing external subtitle files are replaced. When disabled, existing files are left untouched.</span>`;
                 section.appendChild(overwriteDiv);
 
+                // Convert to SRT
+                const convertSrtDiv = document.createElement("div");
+                convertSrtDiv.className = "inputContainer";
+                convertSrtDiv.style.marginTop = "16px";
+                convertSrtDiv.innerHTML = `
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="chkConvertToSrt"/>
+                        <span>Convert to SRT</span>
+                    </label>
+                    <span class="bse-field-description">Convert text-based subtitles to SRT format. Image-based subtitles are not affected.</span>`;
+                section.appendChild(convertSrtDiv);
+
                 container.appendChild(section);
             }
         }
@@ -491,6 +503,8 @@ function betterSubtitleExtractorController(view) {
             if (chkForced) chkForced.checked = !!config.ExcludeForced;
             const chkOverwrite = document.getElementById("chkOverwrite");
             if (chkOverwrite) chkOverwrite.checked = !!config.OverwriteExisting;
+            const chkConvertToSrt = document.getElementById("chkConvertToSrt");
+            if (chkConvertToSrt) chkConvertToSrt.checked = !!config.ConvertToSrt;
         }
     }
 
@@ -570,6 +584,8 @@ function betterSubtitleExtractorController(view) {
             if (chkForced) config.ExcludeForced = chkForced.checked;
             const chkOverwrite = document.getElementById("chkOverwrite");
             if (chkOverwrite) config.OverwriteExisting = chkOverwrite.checked;
+            const chkConvertToSrt = document.getElementById("chkConvertToSrt");
+            if (chkConvertToSrt) config.ConvertToSrt = chkConvertToSrt.checked;
         }
 
         return config;

@@ -2,11 +2,11 @@ name: '🔬 Run CodeQL'
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
       - '**/*.md'
   pull_request:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
       - '**/*.md'
   schedule:
@@ -14,7 +14,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  call:
-    uses: jellyfin/jellyfin-meta-plugins/.github/workflows/scan-codeql.yaml@master
-    with:
-      repository-name: jellyfin/jellyfin-plugin-subtitleextract
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['csharp']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - uses: github/codeql-action/autobuild@v3
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
