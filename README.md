@@ -24,7 +24,17 @@ leaves a partial subtitle behind.
 
 ## Installation
 
-[See the official documentation for install instructions](https://jellyfin.org/docs/general/server/plugins/index.html#installing).
+The plugin is available through the project's plugin repository. Add the
+repository to your Jellyfin server and install from the catalog:
+
+1. In Jellyfin, go to **Dashboard → Plugins → Repositories**.
+2. Click **Add Repository** and enter:
+   - **Repository Name**: `Better Subtitle Extractor`
+   - **Repository URL**: `https://raw.githubusercontent.com/Generator/jellyfin-plugin-extractsubs/gh-pages/manifest.json`
+3. Click **Save**, then go to the **Catalog** tab, find **Better Subtitle Extractor**, and click **Install**.
+4. Restart the Jellyfin server when prompted.
+
+Alternatively, see the [official documentation for manual install instructions](https://jellyfin.org/docs/general/server/plugins/index.html#installing).
 
 ## Build
 
