@@ -30,7 +30,10 @@ repository to your Jellyfin server and install from the catalog:
 1. In Jellyfin, go to **Dashboard → Plugins → Repositories**.
 2. Click **Add Repository** and enter:
    - **Repository Name**: `Better Subtitle Extractor`
-   - **Repository URL**: `https://raw.githubusercontent.com/Generator/jellyfin-plugin-extractsubs/gh-pages/manifest.json`
+   - **Repository URL**:
+     ```
+     https://raw.githubusercontent.com/Generator/jellyfin-plugin-extractsubs/gh-pages/manifest.json
+     ```
 3. Click **Save**, then go to the **Catalog** tab, find **Better Subtitle Extractor**, and click **Install**.
 4. Restart the Jellyfin server when prompted.
 
