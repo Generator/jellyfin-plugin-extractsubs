@@ -1,24 +1,16 @@
 <h1 align="center">Better Subtitle Extractor for Jellyfin Plugin</h1>
 <h3 align="center">Fork of the <a href="https://jellyfin.org">Jellyfin Project</a> subtitle extract plugin</h3>
 
-<p align="center">
-<img alt="Plugin Banner" src="https://raw.githubusercontent.com/jellyfin/jellyfin-ux/master/plugins/SVG/jellyfin-plugin-subtitleextract.svg?sanitize=true"/>
-<br/>
-<br/>
-<a href="https://github.com/jellyfin/jellyfin-plugin-subtitleextract/actions?query=workflow%3A%22Test+Build+Plugin%22">
-<img alt="GitHub Workflow Status" src="https://img.shields.io/github/workflow/status/jellyfin/jellyfin-plugin-subtitleextract/Test%20Build%20Plugin.svg">
-</a>
-<a href="https://github.com/jellyfin/jellyfin-plugin-subtitleextract">
-<img alt="MIT License" src="https://img.shields.io/github/license/jellyfin/jellyfin-plugin-subtitleextract.svg"/>
-</a>
-<a href="https://github.com/jellyfin/jellyfin-plugin-subtitleextract/releases">
-<img alt="Current Release" src="https://img.shields.io/github/release/jellyfin/jellyfin-plugin-subtitleextract.svg"/>
-</a>
-</p>
-
 ## About
 
-Plugin to automatically extract embedded subtitles and attachments.
+Plugin to automatically extract embedded subtitles with powerful filters.
+
+## Features
+
+- **Smart filtering** — extract only the languages and codec types you want, include or exclude SDH and forced streams, and accept/reject streams by title with regex patterns.
+- **Format control** — keep subtitles in their native format or convert text subtitles to SRT for maximum compatibility.
+- **Jellyfin-friendly output** — files follow Jellyfin's naming convention (language + `.default` / `.forced` / `.sdh` markers) so they're picked up
+  automatically, and can be written safely even when a file already exists
 
 ## Installation
 
@@ -35,15 +27,9 @@ Plugin to automatically extract embedded subtitles and attachments.
 
 3. Place the dll-file in the `plugins/subtitleextract` folder (you might need to create the folders) of your JF install
 
-## Releasing
-
-To release the plugin we recommend [JPRM](https://github.com/oddstr13/jellyfin-plugin-repository-manager) that will build and package the plugin.
-For additional context and for how to add the packaged plugin zip to a plugin manifest see the [JPRM documentation](https://github.com/oddstr13/jellyfin-plugin-repository-manager) for more info.
-
-## Contributing
-
-We welcome all contributions and pull requests! If you have a larger feature in mind please open an issue so we can discuss the implementation before you start.
-In general refer to our [contributing guidelines](https://github.com/jellyfin/.github/blob/master/CONTRIBUTING.md) for further information.
+## Acknowledgments
+- [jellyfin/jellyfin-plugin-subtitleextract](https://github.com/jellyfin/jellyfin-plugin-subtitleextract) for the original Jellyfin plugin.
+- [alchemyyy/jellyfin-plugin-subtitleextract](https://github.com/alchemyyy/jellyfin-plugin-subtitleextract) for the additional plugin filters and regex.
 
 ## Licence
 
