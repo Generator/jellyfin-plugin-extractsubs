@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "category": "Subtitles",
+    "description": "Extracts embedded subtitles.\n",
+    "guid": "77BE2143-68BE-4E77-AFC8-82859969038A",
+    "imageUrl": "https://repo.jellyfin.org/releases/plugin/images/jellyfin-plugin-extractsubs.png",
+    "name": "Better Subtitle Extractor",
+    "overview": "Extracts Subtitles.",
+    "owner": "jellyfin",
+    "versions": [
+      {
+        "changelog": "Release v1.0.0.0\n\n- Initial release of Better Subtitle Extractor\n- Extract embedded subtitles and attachments during library scan or via scheduled task\n- Advanced filtering: languages, codecs, SDH/forced, regex and C# override expressions\n- Optional SRT conversion and parallel worker threads",
+        "checksum": "c95af777c6b6a97de11ab5e5c00bc8ae",
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.0.0.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-08-17T13:20:42Z",
+        "version": 7
+      }
+    ]
+  }
+]
