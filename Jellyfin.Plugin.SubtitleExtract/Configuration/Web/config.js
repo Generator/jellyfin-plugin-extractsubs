@@ -320,7 +320,7 @@ function betterSubtitleExtractorController(view) {
 
                 // Accept override
                 const acceptOverrideDiv = document.createElement("div");
-                acceptOverrideDiv.style.marginBottom = "1.5em";
+                acceptOverrideDiv.className = "inputContainer";
                 acceptOverrideDiv.innerHTML = `
                     <div class="checkboxContainer" style="margin-bottom: 0.5em;">
                         <label>
@@ -335,7 +335,7 @@ function betterSubtitleExtractorController(view) {
 
                 // Reject override
                 const rejectOverrideDiv = document.createElement("div");
-                rejectOverrideDiv.style.marginBottom = "1.5em";
+                rejectOverrideDiv.className = "inputContainer";
                 rejectOverrideDiv.innerHTML = `
                     <div class="checkboxContainer" style="margin-bottom: 0.5em;">
                         <label>
