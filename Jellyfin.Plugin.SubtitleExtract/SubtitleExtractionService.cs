@@ -12,7 +12,6 @@ using Jellyfin.Plugin.SubtitleExtract.Events;
 using MediaBrowser.Common;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Events;
-using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Dlna;
@@ -40,7 +39,6 @@ public class SubtitleExtractionService
     private readonly ILocalizationManager _localization;
     private readonly ILogger<SubtitleExtractionService> _logger;
     private readonly ConcurrentDictionary<string, PathLockEntry> _pathLocks = new();
-    private readonly ILibraryManager _libraryManager;
     private readonly IEventManager _eventManager;
 
     /// <summary>
@@ -48,20 +46,17 @@ public class SubtitleExtractionService
     /// </summary>
     /// <param name="mediaEncoder">Instance of <see cref="IMediaEncoder"/> interface.</param>
     /// <param name="localization">Instance of <see cref="ILocalizationManager"/> interface.</param>
-    /// <param name="logger">Instance of <see cref="ILogger"/> interface.</param>
-    /// <param name="libraryManager">Instance of <see cref="ILibraryManager"/> interface.</param>
-    /// <param name="eventManager">Instance of <see cref="IEventManager"/> interface.</param>
+        /// <param name="logger">Instance of <see cref="ILogger"/> interface.</param>
+        /// <param name="eventManager">Instance of <see cref="IEventManager"/> interface.</param>
     public SubtitleExtractionService(
         IMediaEncoder mediaEncoder,
         ILocalizationManager localization,
         ILogger<SubtitleExtractionService> logger,
-        ILibraryManager libraryManager,
         IEventManager eventManager)
     {
         _mediaEncoder = mediaEncoder;
         _localization = localization;
         _logger = logger;
-        _libraryManager = libraryManager;
         _eventManager = eventManager;
     }
 
@@ -86,14 +81,16 @@ public class SubtitleExtractionService
         await pathLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var mediaInfo = await this.ProbeAsync(item.Path, item, cancellationToken).ConfigureAwait(false);
+            var mediaInfo = await this.ProbeAsync(item.Path, cancellationToken).ConfigureAwait(false);
             if (mediaInfo is null)
             {
                 return;
             }
 
-            var streams = mediaInfo.MediaStreams
+            var subtitleStreams = mediaInfo.MediaStreams
                 .Where(s => s.Type == MediaStreamType.Subtitle)
+                .ToList();
+            var streams = subtitleStreams
                 .Where(s => SubtitleStreamFilter.ShouldExtractStream(s, config))
                 .ToList();
 
@@ -114,7 +111,7 @@ public class SubtitleExtractionService
         }
     }
 
-    private async Task<MediaInfo?> ProbeAsync(string path, BaseItem item, CancellationToken cancellationToken)
+    private async Task<MediaInfo?> ProbeAsync(string path, CancellationToken cancellationToken)
     {
         var request = new MediaInfoRequest
         {
@@ -127,50 +124,7 @@ public class SubtitleExtractionService
             ExtractChapters = false,
         };
 
-        var mediaInfo = await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
-
-        // Respect the library's AllowEmbeddedSubtitles setting so we do not
-        // unintentionally override Jellyfin's configuration.
-        if (mediaInfo is not null)
-        {
-            var libraryOptions = _libraryManager.GetLibraryOptions(item);
-            if (libraryOptions.AllowEmbeddedSubtitles != EmbeddedSubtitleOptions.AllowAll)
-            {
-                mediaInfo.MediaStreams = mediaInfo.MediaStreams
-                    .Where(s => s.Type != MediaStreamType.Subtitle || IsSubtitleAllowed(s, libraryOptions.AllowEmbeddedSubtitles))
-                    .ToArray();
-            }
-        }
-
-        return mediaInfo;
-    }
-
-    private static bool IsSubtitleAllowed(MediaStream stream, EmbeddedSubtitleOptions options)
-    {
-        if (options == EmbeddedSubtitleOptions.AllowNone)
-        {
-            return false;
-        }
-
-        if (options == EmbeddedSubtitleOptions.AllowText)
-        {
-            return !IsImageBasedSubtitle(stream);
-        }
-
-        if (options == EmbeddedSubtitleOptions.AllowImage)
-        {
-            return IsImageBasedSubtitle(stream);
-        }
-
-        return true;
-    }
-
-    private static bool IsImageBasedSubtitle(MediaStream stream)
-    {
-        return string.Equals(stream.Codec, "pgssub", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(stream.Codec, "dvdsub", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(stream.Codec, "vobsub", StringComparison.OrdinalIgnoreCase)
-            || MediaStream.IsVobSubFormat(stream.Codec);
+        return await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task ExtractStreamAsync(
@@ -219,21 +173,35 @@ public class SubtitleExtractionService
             outputCodec,
         };
 
+        string ffmpegFormat;
         if (MediaStream.IsVobSubFormat(stream.Codec))
         {
-            arguments.Add("-f");
-            arguments.Add("matroska");
+            ffmpegFormat = "matroska";
+        }
+        else if (string.Equals(outputCodec, "copy", StringComparison.OrdinalIgnoreCase))
+        {
+            // The temp output file uses a ".tmp" extension, so ffmpeg cannot infer the
+            // muxer from it. Map the source codec to its ffmpeg format name explicitly.
+            ffmpegFormat = stream.Codec?.ToLowerInvariant() switch
+            {
+                "subrip" or "srt" => "srt",
+                "ass" or "ssa" => "ass",
+                "webvtt" or "vtt" => "webvtt",
+                "mov_text" => "mov_text",
+                _ => "srt",
+            };
         }
         else if (config.ConvertToSrt && !IsImageBasedSubtitleCodec(stream.Codec))
         {
-            arguments.Add("-f");
-            arguments.Add("srt");
+            ffmpegFormat = "srt";
         }
-        else if (!IsCodecCopyable(stream.Codec) && !string.Equals(outputCodec, "srt", StringComparison.OrdinalIgnoreCase))
+        else
         {
-            arguments.Add("-f");
-            arguments.Add(outputCodec);
+            ffmpegFormat = outputCodec;
         }
+
+        arguments.Add("-f");
+        arguments.Add(ffmpegFormat);
 
         arguments.Add("-flush_packets");
         arguments.Add("1");
