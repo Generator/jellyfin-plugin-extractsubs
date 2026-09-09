@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.SubtitleExtract.Configuration;
@@ -12,15 +13,17 @@ using Jellyfin.Plugin.SubtitleExtract.Events;
 using MediaBrowser.Common;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Events;
-using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
-using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Dlna;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.MediaInfo;
 using Microsoft.Extensions.Logging;
+
+#pragma warning disable CA1873 // Evaluation may be expensive if logging disabled — guarded by IsEnabled
+#pragma warning disable CA1826 // Do not use Enumerable methods on indexable collections — Any with predicate is intentional
+#pragma warning disable SA1501 // Statement should not be on a single line — compact kill wrappers
 
 namespace Jellyfin.Plugin.SubtitleExtract;
 
@@ -30,7 +33,9 @@ namespace Jellyfin.Plugin.SubtitleExtract;
 /// <remarks>
 /// Uses <see cref="IMediaEncoder.GetMediaInfo(MediaInfoRequest, CancellationToken)"/> to bypass the
 /// server's <c>AllowEmbeddedSubtitles</c> setting, which strips embedded subtitle streams from the
-/// library database before this plugin ever sees them.
+/// library database before this plugin ever sees them. Falls back to a direct ffprobe invocation
+/// when the server's <c>MediaEncoder</c> is broken by the <c>file:</c> prefix regression (ffprobe
+/// returns null streams/format on linuxserver/jellyfin:latest).
 /// </remarks>
 public class SubtitleExtractionService
 {
@@ -40,7 +45,6 @@ public class SubtitleExtractionService
     private readonly ILocalizationManager _localization;
     private readonly ILogger<SubtitleExtractionService> _logger;
     private readonly ConcurrentDictionary<string, PathLockEntry> _pathLocks = new();
-    private readonly ILibraryManager _libraryManager;
     private readonly IEventManager _eventManager;
 
     /// <summary>
@@ -49,19 +53,16 @@ public class SubtitleExtractionService
     /// <param name="mediaEncoder">Instance of <see cref="IMediaEncoder"/> interface.</param>
     /// <param name="localization">Instance of <see cref="ILocalizationManager"/> interface.</param>
     /// <param name="logger">Instance of <see cref="ILogger"/> interface.</param>
-    /// <param name="libraryManager">Instance of <see cref="ILibraryManager"/> interface.</param>
     /// <param name="eventManager">Instance of <see cref="IEventManager"/> interface.</param>
     public SubtitleExtractionService(
         IMediaEncoder mediaEncoder,
         ILocalizationManager localization,
         ILogger<SubtitleExtractionService> logger,
-        ILibraryManager libraryManager,
         IEventManager eventManager)
     {
         _mediaEncoder = mediaEncoder;
         _localization = localization;
         _logger = logger;
-        _libraryManager = libraryManager;
         _eventManager = eventManager;
     }
 
@@ -92,8 +93,10 @@ public class SubtitleExtractionService
                 return;
             }
 
-            var streams = mediaInfo.MediaStreams
+            var subtitleStreams = mediaInfo.MediaStreams
                 .Where(s => s.Type == MediaStreamType.Subtitle)
+                .ToList();
+            var streams = subtitleStreams
                 .Where(s => SubtitleStreamFilter.ShouldExtractStream(s, config))
                 .ToList();
 
@@ -116,61 +119,270 @@ public class SubtitleExtractionService
 
     private async Task<MediaInfo?> ProbeAsync(string path, BaseItem item, CancellationToken cancellationToken)
     {
-        var request = new MediaInfoRequest
+        // 1) Try Jellyfin's MediaEncoder (bypasses AllowEmbeddedSubtitles via MediaInfoRequest).
+        try
         {
-            MediaSource = new MediaSourceInfo
+            var request = new MediaInfoRequest
+            {
+                MediaSource = new MediaSourceInfo
+                {
+                    Path = path,
+                    Protocol = MediaProtocol.File,
+                },
+                MediaType = DlnaProfileType.Video,
+                ExtractChapters = false,
+            };
+
+            var mediaInfo = await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
+            if (mediaInfo?.MediaStreams != null && mediaInfo.MediaStreams.Count > 0)
+            {
+                return mediaInfo;
+            }
+
+            // MediaEncoder returned null/empty — likely the file: prefix regression (streams+format null).
+            _logger.LogWarning("MediaEncoder probe returned no streams for {Path}, falling back to direct ffprobe", path);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "MediaEncoder probe failed for {Path}, falling back to direct ffprobe", path);
+        }
+
+        // 2) Direct ffprobe fallback (no file: prefix).
+        try
+        {
+            var direct = await ProbeDirectAsync(path, cancellationToken).ConfigureAwait(false);
+            if (direct != null)
+            {
+                return direct;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Direct ffprobe fallback failed for {Path}", path);
+        }
+
+        // 3) Last resort: item's already-populated MediaStreams (if any).
+        try
+        {
+            if (item is Video video && video.GetMediaSources(false) is { } sources)
+            {
+                var source = sources.FirstOrDefault(s => string.Equals(s.Path, path, StringComparison.Ordinal))
+                    ?? sources.FirstOrDefault();
+                if (source?.MediaStreams != null && source.MediaStreams.Count > 0 && source.MediaStreams.Any(s => s.Type == MediaStreamType.Subtitle))
+                {
+                    _logger.LogInformation("Using item's cached MediaStreams for {Path}", path);
+                    var fallback = new MediaInfo
+                    {
+                        Path = path,
+                        Protocol = MediaProtocol.File,
+                        MediaStreams = source.MediaStreams,
+                    };
+                    return fallback;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Item streams fallback failed for {Path}", path);
+        }
+
+        return null;
+    }
+
+    private async Task<MediaInfo?> ProbeDirectAsync(string path, CancellationToken cancellationToken)
+    {
+        var ffprobePath = GetFfprobePath(_mediaEncoder.EncoderPath);
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            },
+            EnableRaisingEvents = true,
+        };
+
+        // Match Jellyfin's probing args but without file: prefix.
+        process.StartInfo.ArgumentList.Add("-v");
+        process.StartInfo.ArgumentList.Add("quiet");
+        process.StartInfo.ArgumentList.Add("-print_format");
+        process.StartInfo.ArgumentList.Add("json");
+        process.StartInfo.ArgumentList.Add("-show_streams");
+        process.StartInfo.ArgumentList.Add("-show_format");
+        process.StartInfo.ArgumentList.Add("-analyzeduration");
+        process.StartInfo.ArgumentList.Add("200M");
+        process.StartInfo.ArgumentList.Add("-probesize");
+        process.StartInfo.ArgumentList.Add("1G");
+        process.StartInfo.ArgumentList.Add("-i");
+        process.StartInfo.ArgumentList.Add(path);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Probing with direct ffprobe {File} {Args}", process.StartInfo.FileName, string.Join(' ', process.StartInfo.ArgumentList));
+        }
+
+        try
+        {
+            process.Start();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error starting ffprobe for {Path}", path);
+            throw;
+        }
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        waitCts.CancelAfter(TimeSpan.FromMinutes(FfmpegTimeoutMinutes));
+
+        try
+        {
+            await process.WaitForExitAsync(waitCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(true);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            // Ensure output tasks are observed even on timeout.
+            try
+            {
+                await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new FfmpegException("ffprobe timed out.");
+        }
+
+        var stdout = await stdoutTask.ConfigureAwait(false);
+        var stderr = await stderrTask.ConfigureAwait(false);
+
+        if (process.ExitCode != 0)
+        {
+            _logger.LogWarning("ffprobe failed for {Path}: {Error}", path, stderr);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(stdout))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(stdout);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("streams", out var streamsElem) || streamsElem.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var mediaStreams = new List<MediaStream>();
+            foreach (var s in streamsElem.EnumerateArray())
+            {
+                var codecType = s.TryGetProperty("codec_type", out var ctProp) ? ctProp.GetString() : null;
+                var codecName = s.TryGetProperty("codec_name", out var cnProp) ? cnProp.GetString() : null;
+                var index = s.TryGetProperty("index", out var idxProp) && idxProp.TryGetInt32(out var idx) ? idx : mediaStreams.Count;
+
+                MediaStreamType type = codecType switch
+                {
+                    "video" => MediaStreamType.Video,
+                    "audio" => MediaStreamType.Audio,
+                    "subtitle" => MediaStreamType.Subtitle,
+                    "attachment" => MediaStreamType.Data,
+                    _ => MediaStreamType.Data,
+                };
+
+                // Only keep subtitle streams for fallback, but keep others for completeness.
+                string? language = null;
+                string? title = null;
+                if (s.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Object)
+                {
+                    if (tags.TryGetProperty("language", out var langProp))
+                    {
+                        language = langProp.GetString();
+                    }
+
+                    if (tags.TryGetProperty("title", out var titleProp))
+                    {
+                        title = titleProp.GetString();
+                    }
+                }
+
+                bool isDefault = false;
+                bool isForced = false;
+                if (s.TryGetProperty("disposition", out var disp) && disp.ValueKind == JsonValueKind.Object)
+                {
+                    if (disp.TryGetProperty("default", out var defProp) && defProp.TryGetInt32(out var defVal))
+                    {
+                        isDefault = defVal == 1;
+                    }
+
+                    if (disp.TryGetProperty("forced", out var forcedProp) && forcedProp.TryGetInt32(out var forcedVal))
+                    {
+                        isForced = forcedVal == 1;
+                    }
+                }
+
+                var ms = new MediaStream
+                {
+                    Index = index,
+                    Type = type,
+                    Codec = codecName ?? string.Empty,
+                    Language = language,
+                    Title = title,
+                    IsDefault = isDefault,
+                    IsForced = isForced,
+                };
+                mediaStreams.Add(ms);
+            }
+
+            var mediaInfo = new MediaInfo
             {
                 Path = path,
                 Protocol = MediaProtocol.File,
-            },
-            MediaType = DlnaProfileType.Video,
-            ExtractChapters = false,
-        };
-
-        var mediaInfo = await _mediaEncoder.GetMediaInfo(request, cancellationToken).ConfigureAwait(false);
-
-        // Respect the library's AllowEmbeddedSubtitles setting so we do not
-        // unintentionally override Jellyfin's configuration.
-        if (mediaInfo is not null)
+                MediaStreams = mediaStreams,
+            };
+            return mediaInfo;
+        }
+        catch (JsonException ex)
         {
-            var libraryOptions = _libraryManager.GetLibraryOptions(item);
-            if (libraryOptions.AllowEmbeddedSubtitles != EmbeddedSubtitleOptions.AllowAll)
+            _logger.LogWarning(ex, "Failed to parse ffprobe output for {Path}", path);
+            return null;
+        }
+    }
+
+    private static string GetFfprobePath(string encoderPath)
+    {
+        var dir = Path.GetDirectoryName(encoderPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            var probe = Path.Combine(dir, "ffprobe");
+            if (File.Exists(probe))
             {
-                mediaInfo.MediaStreams = mediaInfo.MediaStreams
-                    .Where(s => s.Type != MediaStreamType.Subtitle || IsSubtitleAllowed(s, libraryOptions.AllowEmbeddedSubtitles))
-                    .ToArray();
+                return probe;
             }
         }
 
-        return mediaInfo;
-    }
-
-    private static bool IsSubtitleAllowed(MediaStream stream, EmbeddedSubtitleOptions options)
-    {
-        if (options == EmbeddedSubtitleOptions.AllowNone)
-        {
-            return false;
-        }
-
-        if (options == EmbeddedSubtitleOptions.AllowText)
-        {
-            return !IsImageBasedSubtitle(stream);
-        }
-
-        if (options == EmbeddedSubtitleOptions.AllowImage)
-        {
-            return IsImageBasedSubtitle(stream);
-        }
-
-        return true;
-    }
-
-    private static bool IsImageBasedSubtitle(MediaStream stream)
-    {
-        return string.Equals(stream.Codec, "pgssub", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(stream.Codec, "dvdsub", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(stream.Codec, "vobsub", StringComparison.OrdinalIgnoreCase)
-            || MediaStream.IsVobSubFormat(stream.Codec);
+        // Fallback to ffprobe on PATH.
+        return "ffprobe";
     }
 
     private async Task ExtractStreamAsync(
@@ -219,21 +431,36 @@ public class SubtitleExtractionService
             outputCodec,
         };
 
+        string ffmpegFormat;
         if (MediaStream.IsVobSubFormat(stream.Codec))
         {
-            arguments.Add("-f");
-            arguments.Add("matroska");
+            ffmpegFormat = "matroska";
+        }
+        else if (string.Equals(outputCodec, "copy", StringComparison.OrdinalIgnoreCase))
+        {
+            // The temp output file uses a ".tmp" extension, so ffmpeg cannot infer the
+            // muxer from it. Map the source codec to its ffmpeg format name explicitly.
+            ffmpegFormat = stream.Codec?.ToLowerInvariant() switch
+            {
+                "subrip" or "srt" => "srt",
+                "ass" or "ssa" => "ass",
+                "webvtt" or "vtt" => "webvtt",
+                "mov_text" => "mov_text",
+                "pgssub" or "dvbsub" or "dvdsub" => "matroska",
+                _ => throw new NotSupportedException(string.Format(CultureInfo.InvariantCulture, "Unsupported subtitle codec for copy: {0}", stream.Codec)),
+            };
         }
         else if (config.ConvertToSrt && !IsImageBasedSubtitleCodec(stream.Codec))
         {
-            arguments.Add("-f");
-            arguments.Add("srt");
+            ffmpegFormat = "srt";
         }
-        else if (!IsCodecCopyable(stream.Codec) && !string.Equals(outputCodec, "srt", StringComparison.OrdinalIgnoreCase))
+        else
         {
-            arguments.Add("-f");
-            arguments.Add(outputCodec);
+            ffmpegFormat = outputCodec;
         }
+
+        arguments.Add("-f");
+        arguments.Add(ffmpegFormat);
 
         arguments.Add("-flush_packets");
         arguments.Add("1");

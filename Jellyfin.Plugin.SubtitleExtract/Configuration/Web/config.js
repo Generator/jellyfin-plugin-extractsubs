@@ -140,9 +140,9 @@ function betterSubtitleExtractorController(view) {
                 scanDiv.innerHTML = `
                     <label class="checkboxContainer">
                         <input is="emby-checkbox" type="checkbox" id="chkEnableDuringScan"/>
-                        <span>Extract subtitles and attachments during library scan</span>
+                        <span>Extract subtitles during library scan</span>
                     </label>
-                    <span class="bse-field-description">This will make sure subtitles and attachments are extracted sooner but will result in longer library scans. Does not disable the scheduled task.</span>`;
+                    <span class="bse-field-description">This will make sure subtitles are extracted sooner but will result in longer library scans. Does not disable the scheduled task.</span>`;
                 section.appendChild(scanDiv);
 
                 // Worker threads
@@ -181,18 +181,6 @@ function betterSubtitleExtractorController(view) {
                 section.appendChild(buildCheckList(
                     librariesCache,
                     currentConfig.SelectedSubtitlesLibraries || [],
-                    { searchPlaceholder: "Search libraries..." }
-                ));
-
-                // Attachment libraries
-                const attLabel = document.createElement("div");
-                attLabel.className = "bse-list-label";
-                attLabel.style.marginTop = "16px";
-                attLabel.textContent = "Attachment extraction libraries";
-                section.appendChild(attLabel);
-                section.appendChild(buildCheckList(
-                    librariesCache,
-                    currentConfig.SelectedAttachmentsLibraries || [],
                     { searchPlaceholder: "Search libraries..." }
                 ));
 
@@ -531,9 +519,8 @@ function betterSubtitleExtractorController(view) {
         // Libraries (only read from DOM when the Libraries tab is active)
         if (activeTabId === "libraries") {
             const libBlocks = $$(".bse-list-block", document.getElementById("bseTabContent"));
-            if (libBlocks.length >= 2) {
+            if (libBlocks.length >= 1) {
                 config.SelectedSubtitlesLibraries = getCheckedValues(libBlocks[0]);
-                config.SelectedAttachmentsLibraries = getCheckedValues(libBlocks[1]);
             }
         }
 

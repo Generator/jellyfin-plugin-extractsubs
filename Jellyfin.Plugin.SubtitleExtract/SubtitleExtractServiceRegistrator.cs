@@ -15,6 +15,7 @@ public class SubtitleExtractServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<SubtitleExtractionService>();
+        serviceCollection.AddHostedService<SubtitleExtractItemAddedEntryPoint>();
         serviceCollection.AddScoped<IEventConsumer<SubtitleExtractionFailedEventArgs>, SubtitleExtractionFailedLogger>();
     }
 }
