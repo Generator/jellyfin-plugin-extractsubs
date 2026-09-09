@@ -131,11 +131,6 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] SelectedSubtitlesLibraries { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the list of selected libraries to extract attachments from (empty means all).
-    /// </summary>
-    public string[] SelectedAttachmentsLibraries { get; set; } = [];
-
-    /// <summary>
     /// Gets or sets a value indicating whether to extract all languages regardless of selection.
     /// </summary>
     public bool ExtractAllLanguages { get; set; } = true;

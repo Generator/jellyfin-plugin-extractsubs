@@ -31,7 +31,7 @@ public class SubtitleExtractPlugin : BasePlugin<PluginConfiguration>, IHasWebPag
     public override Guid Id => new("77BE2143-68BE-4E77-AFC8-82859969038A");
 
     /// <inheritdoc />
-    public override string Description => "Extracts embedded subtitles and attachments";
+    public override string Description => "Extracts embedded subtitles";
 
     /// <summary>
     /// Gets the current plugin instance.
