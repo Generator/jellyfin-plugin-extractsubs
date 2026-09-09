@@ -9,20 +9,28 @@
     "owner": "jellyfin",
     "versions": [
       {
+        "version": "7",
         "changelog": "Release v1.0.0.0\n\n- Initial release of Better Subtitle Extractor\n- Extract embedded subtitles and attachments during library scan or via scheduled task\n- Advanced filtering: languages, codecs, SDH/forced, regex and C# override expressions\n- Optional SRT conversion and parallel worker threads",
-        "checksum": "c95af777c6b6a97de11ab5e5c00bc8ae",
-        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.0.0.0/Jellyfin.Plugin.SubtitleExtract.zip",
         "targetAbi": "12.0.0.0",
-        "timestamp": "2026-08-17T13:20:42Z",
-        "version": "1.0.0.0"
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.0.0.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "checksum": "c95af777c6b6a97de11ab5e5c00bc8ae",
+        "timestamp": "2026-08-17T13:20:42Z"
       },
       {
-        "changelog": "Release v1.1.0.0\n\n- Reliable extraction trigger: new hosted service subscribes to library ItemAdded/ItemUpdated events\n- Fix ffmpeg extraction failure by always passing an explicit -f format for the source codec\n- Graceful shutdown using a service-lifetime CancellationTokenSource",
-        "checksum": "9e0e6429a39b8ba17081cdb169aa3022",
-        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.1.0.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "version": "1.1.1.0",
+        "changelog": "Better Subtitle Extractor v1.1.1.0\n\nChanges since v1.1.0.0:\n- Subtitles-only: remove attachment extraction stack\n  (SelectedAttachmentsLibraries, ExtractAttachmentsTask,\n  AttachmentExtractionProvider) \u2013 single library filter\n  SelectedSubtitlesLibraries\n- Fix Jellyfin 12 file: prefix regression: MediaEncoder now prepends\n  file: which makes ffprobe return null streams. ProbeAsync now\n  tries MediaEncoder, falls back to direct ffprobe JSON parsing\n  without file: prefix (derived from EncoderPath), then to item\n  cached MediaStreams\n- Restore SubtitleExtractItemAddedEntryPoint hosted service for\n  reliable ItemAdded/ItemUpdated trigger and re-register via\n  SubtitleExtractServiceRegistrator\n- Normalize ffmpeg muxer mapping: explicit -f for copyable codecs,\n  pgssub/dvbsub/dvdsub -> matroska, unknown codec_type -> Data,\n  unsupported copy codec now throws instead of silent srt fallback\n- Ensure ffprobe stdout/stderr are observed even on timeout\n- Bump Directory.Build.props to 1.1.1.0, update meta.json\n\nVerified: Extract Subtitles task Completed (12:35) on\nlinuxserver/jellyfin:latest (Jellyfin 12.0.0, file: regression\npresent); Peaky Blinders mkv extracted 3 srt files (eng x2, por)\nnext to media. Build 0 warnings.",
         "targetAbi": "12.0.0.0",
-        "timestamp": "2026-08-25T19:24:56Z",
-        "version": "1.1.0.0"
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.1.1.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "checksum": "e5ccdf632daaf26f168717b59151ca8c",
+        "timestamp": "2026-09-09T13:05:11Z"
+      },
+      {
+        "version": "1.1.0.0",
+        "changelog": "Better Subtitle Extractor v1.1.0.0\n\nChanges since v1.0.0.0:\n- Reliable extraction trigger: a new hosted service subscribes to library\n  ItemAdded/ItemUpdated events, so subtitles are extracted whenever an item is\n  added or refreshed (previously only ran during metadata refresh and could be\n  skipped for unchanged items).\n- Fixed ffmpeg extraction failure: always pass an explicit -f format matching\n  the source codec. The atomic temp output uses a \".tmp\" extension, which\n  previously prevented ffmpeg from choosing a muxer and caused extraction to\n  fail for copyable text subtitle codecs (subrip/ass/webvtt).\n- Graceful shutdown: use a service-lifetime CancellationTokenSource cancelled on\n  shutdown instead of CancellationToken.None, so in-flight ffmpeg work observes\n  cancellation.\n\nVerified: refreshing the Filmes library extracts eng + por subtitles for the\ntest mkv (2 .srt files produced).",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.1.0.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "checksum": "9e0e6429a39b8ba17081cdb169aa3022",
+        "timestamp": "2026-08-25T19:27:29Z"
       }
     ]
   }
