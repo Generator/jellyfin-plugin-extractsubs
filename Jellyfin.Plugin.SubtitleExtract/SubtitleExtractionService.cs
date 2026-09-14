@@ -81,6 +81,16 @@ public class SubtitleExtractionService
             return;
         }
 
+        if (item is Video video && video.IsPlaceHolder)
+        {
+            return;
+        }
+
+        if (item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         // Serialize concurrent extractions for the same media path so only one caller
         // publishes each subtitle file, while different paths remain independent.
         var pathLock = this.AcquirePathLock(item.Path);
@@ -105,9 +115,36 @@ public class SubtitleExtractionService
                 return;
             }
 
-            foreach (var stream in streams)
+            // One file per (language, forced, sdh) — no 0./1. numbering, skip if exists and !OverwriteExisting
+            // SDH by title (e.g. "English (SDH)") is treated as HI even if disposition.hearing_impaired==0
+            static bool IsSdh(MediaStream s) =>
+                s.IsHearingImpaired
+                || s.Title?.IndexOf("SDH", StringComparison.OrdinalIgnoreCase) >= 0
+                || s.Title?.IndexOf("hearing impaired", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            var deduped = streams
+                .GroupBy(s => (
+                    lang: (s.Language ?? "und").ToLowerInvariant(),
+                    forced: s.IsForced,
+                    hi: IsSdh(s)))
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var stream in deduped)
             {
-                await this.ExtractStreamAsync(item, mediaInfo, stream, config, cancellationToken).ConfigureAwait(false);
+                var baseFileName = ExternalSubtitleNaming.BuildFileName(mediaInfo.Path, stream, config, _localization);
+                var outputPath = Path.Combine(Path.GetDirectoryName(mediaInfo.Path)!, baseFileName);
+                if (File.Exists(outputPath) && !config.OverwriteExisting)
+                {
+                    if (_logger.IsEnabled(LogLevel.Information))
+                    {
+                        _logger.LogInformation("Skipping existing subtitle file: {OutputPath}", outputPath);
+                    }
+
+                    continue;
+                }
+
+                await this.ExtractStreamAsync(item, mediaInfo, stream, config, outputPath, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -390,14 +427,13 @@ public class SubtitleExtractionService
         MediaSourceInfo mediaSource,
         MediaStream stream,
         PluginConfiguration config,
+        string outputPath,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mediaSource);
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(config);
-        var outputPath = Path.Combine(
-            Path.GetDirectoryName(mediaSource.Path)!,
-            ExternalSubtitleNaming.BuildFileName(mediaSource.Path, stream, config, _localization));
+        ArgumentNullException.ThrowIfNull(outputPath);
 
         if (File.Exists(outputPath) && !config.OverwriteExisting)
         {

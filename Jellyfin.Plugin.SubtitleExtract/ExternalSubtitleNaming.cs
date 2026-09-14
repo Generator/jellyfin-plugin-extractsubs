@@ -19,15 +19,16 @@ public static class ExternalSubtitleNaming
     /// <param name="stream">The subtitle stream.</param>
     /// <param name="config">The plugin configuration.</param>
     /// <param name="localization">The localization manager used to normalize language codes.</param>
+    /// <param name="forceDefault">Kept for compatibility; when IncludeDefaultMarker is true, .default is always added regardless of IsDefault.</param>
     /// <returns>The external subtitle file name.</returns>
-    public static string BuildFileName(string videoPath, MediaStream stream, PluginConfiguration config, ILocalizationManager localization)
+    public static string BuildFileName(string videoPath, MediaStream stream, PluginConfiguration config, ILocalizationManager localization, bool forceDefault = false)
     {
         var basename = Path.GetFileNameWithoutExtension(videoPath);
         var language = NormalizeLanguage(stream.Language, localization);
         var extension = GetFileExtension(stream);
 
         var name = basename;
-        if (config.IncludeDefaultMarker && stream.IsDefault)
+        if (config.IncludeDefaultMarker && !stream.IsForced && !IsSdh(stream))
         {
             name += ".default";
         }
@@ -38,7 +39,7 @@ public static class ExternalSubtitleNaming
         {
             name += ".forced";
         }
-        else if (stream.IsHearingImpaired)
+        else if (IsSdh(stream))
         {
             name += ".sdh";
         }
@@ -83,5 +84,12 @@ public static class ExternalSubtitleNaming
         }
 
         return "srt";
+    }
+
+    private static bool IsSdh(MediaStream stream)
+    {
+        return stream.IsHearingImpaired
+            || stream.Title?.IndexOf("SDH", StringComparison.OrdinalIgnoreCase) >= 0
+            || stream.Title?.IndexOf("hearing impaired", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }

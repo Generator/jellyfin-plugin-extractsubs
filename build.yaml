@@ -1,7 +1,7 @@
 name: "Better Subtitle Extractor"
 guid: "77BE2143-68BE-4E77-AFC8-82859969038A"
 imageUrl: "https://repo.jellyfin.org/releases/plugin/images/jellyfin-plugin-extractsubs.png"
-version: 7
+version: "1.1.2.0"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "jellyfin"
@@ -13,4 +13,6 @@ category: "Subtitles"
 artifacts:
   - "Jellyfin.Plugin.SubtitleExtract.dll"
 changelog: |-
-  - Fix HasChanged checks (#57) @Shadowghost
+  - Always add .default when IncludeDefaultMarker is enabled (even if IsDefault false) with 0./1. disambiguation for same-language duplicates
+  - Skip .strm / IsPlaceHolder placeholders (27 docker/media trailers/YTS) to avoid ffprobe on external URLs
+  - Subtitles-only single library filter, file: fallback via direct ffprobe
