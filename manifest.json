@@ -9,6 +9,22 @@
     "owner": "jellyfin",
     "versions": [
       {
+        "version": "7",
+        "changelog": "Release v1.0.0.0\n\n- Initial release of Better Subtitle Extractor\n- Extract embedded subtitles and attachments during library scan or via scheduled task\n- Advanced filtering: languages, codecs, SDH/forced, regex and C# override expressions\n- Optional SRT conversion and parallel worker threads",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.0.0.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "checksum": "c95af777c6b6a97de11ab5e5c00bc8ae",
+        "timestamp": "2026-08-17T13:20:42Z"
+      },
+      {
+        "version": "1.1.2.0",
+        "changelog": "Better Subtitle Extractor v1.1.2.0\n\nChanges since v1.1.1.0:\n- Always add .default when IncludeDefaultMarker is enabled (even if\n  IsDefault false) \u2014 IsForced/IsHearingImpaired (including title\n  contains SDH/hearing impaired) are excluded (eng.sdh.srt without\n  default)\n- Single file per (language, forced, SDH) \u2014 GroupBy lang+forced+IsSdh\n  (title SDH) -> one default.eng.srt / default.por.srt, no\n  0./1./2. numbering; skip if File.Exists && !OverwriteExisting\n- SDH detection via title (\"SDH\", \"hearing impaired\") in addition\n  to IsHearingImpaired flag \u2014 fixes Lanterns English (SDH) title\n  with HI 0 being treated as SDH (eng.sdh.srt)\n- Skip .strm / IsPlaceHolder placeholders (27 docker/media\n  trailers/YTS) to avoid ffprobe on external URLs \u2014 guard in\n  ExtractSubtitlesAsync\n- Subtitles-only single library filter, file: fallback via direct\n  ffprobe JSON parsing remains\n- Handle numeric versions in plugin repo manifest generation\n  (stringify versions before localeCompare) + keep\n  scripts/repo_manifest.py\n\nVerified: 1.1.2.0 test build 0 warnings, deployed to\ndocker/jellyfin/library/data/plugins/Better Subtitle Extractor_1.1.2.0/\n(99K), Lanterns S01E05 now default.eng.srt + eng.sdh.srt +\ndefault.por.srt single, next ItemUpdated correctly Skipping existing\n(no 0./1. storm). Merged master b7ae541 into dev.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.1.2.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "checksum": "8fe659461cbe7cbf2a7e35bd8c66cc7c",
+        "timestamp": "2026-09-14T19:44:57Z"
+      },
+      {
         "version": "1.1.1.0",
         "changelog": "Better Subtitle Extractor v1.1.1.0\n\nChanges since v1.1.0.0:\n- Subtitles-only: remove attachment extraction stack\n  (SelectedAttachmentsLibraries, ExtractAttachmentsTask,\n  AttachmentExtractionProvider) \u2013 single library filter\n  SelectedSubtitlesLibraries\n- Fix Jellyfin 12 file: prefix regression: MediaEncoder now prepends\n  file: which makes ffprobe return null streams. ProbeAsync now\n  tries MediaEncoder, falls back to direct ffprobe JSON parsing\n  without file: prefix (derived from EncoderPath), then to item\n  cached MediaStreams\n- Restore SubtitleExtractItemAddedEntryPoint hosted service for\n  reliable ItemAdded/ItemUpdated trigger and re-register via\n  SubtitleExtractServiceRegistrator\n- Normalize ffmpeg muxer mapping: explicit -f for copyable codecs,\n  pgssub/dvbsub/dvdsub -> matroska, unknown codec_type -> Data,\n  unsupported copy codec now throws instead of silent srt fallback\n- Ensure ffprobe stdout/stderr are observed even on timeout\n- Bump Directory.Build.props to 1.1.1.0, update meta.json\n\nVerified: Extract Subtitles task Completed (12:35) on\nlinuxserver/jellyfin:latest (Jellyfin 12.0.0, file: regression\npresent); Peaky Blinders mkv extracted 3 srt files (eng x2, por)\nnext to media. Build 0 warnings.",
         "targetAbi": "12.0.0.0",
