@@ -76,10 +76,10 @@ jobs:
           files: artifacts/*
           body: ${{ steps.changelog.outputs.body }}
 
-      - name: Jellyfin plugin repo
-        uses: Kevinjil/jellyfin-plugin-repo-action@v0.4.3
-        with:
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          pagesBranch: gh-pages
-          pagesFile: manifest.json
+      - name: Generate plugin repository manifest (patched for numeric versions)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          pip install pyyaml -q
+          python3 scripts/repo_manifest.py

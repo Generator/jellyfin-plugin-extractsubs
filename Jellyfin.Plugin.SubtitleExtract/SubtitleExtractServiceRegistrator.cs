@@ -17,5 +17,9 @@ public class SubtitleExtractServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<SubtitleExtractionService>();
         serviceCollection.AddHostedService<SubtitleExtractItemAddedEntryPoint>();
         serviceCollection.AddScoped<IEventConsumer<SubtitleExtractionFailedEventArgs>, SubtitleExtractionFailedLogger>();
+
+        // Subscribe to library item additions so extraction fires reliably on item add,
+        // independent of the metadata-provider refresh pipeline.
+        serviceCollection.AddHostedService<SubtitleExtractItemAddedEntryPoint>();
     }
 }

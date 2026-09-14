@@ -15,4 +15,9 @@ artifacts:
 changelog: |-
   - Always add .default when IncludeDefaultMarker is enabled (even if IsDefault false) with 0./1. disambiguation for same-language duplicates
   - Skip .strm / IsPlaceHolder placeholders (27 docker/media trailers/YTS) to avoid ffprobe on external URLs
-  - Subtitles-only single library filter, file: fallback via direct ffprobe
+  - Handle numeric versions in plugin repo manifest generation (stringify versions before localeCompare)
+  - Subtitles-only: remove attachment extraction stack (SelectedAttachmentsLibraries, ExtractAttachmentsTask, AttachmentExtractionProvider) – single library filter
+  - Fix Jellyfin 12 file: prefix regression: ProbeAsync now tries MediaEncoder, falls back to direct ffprobe JSON parsing without file: prefix, then to item cached MediaStreams
+  - Restore SubtitleExtractItemAddedEntryPoint hosted service for reliable ItemAdded/ItemUpdated trigger
+  - Normalize ffmpeg muxer mapping: explicit -f for copyable codecs, pgssub/dvbsub/dvdsub -> matroska
+  - Ensure ffprobe stdout/stderr are observed even on timeout
