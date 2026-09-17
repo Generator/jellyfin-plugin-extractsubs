@@ -414,6 +414,18 @@ function betterSubtitleExtractorController(view) {
                     <span class="bse-field-description">Convert text-based subtitles to SRT format. Image-based subtitles are not affected.</span>`;
                 section.appendChild(convertSrtDiv);
 
+                // Remove font size
+                const fontSizeDiv = document.createElement("div");
+                fontSizeDiv.className = "inputContainer";
+                fontSizeDiv.style.marginTop = "16px";
+                fontSizeDiv.innerHTML = `
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="chkRemoveFontSize"/>
+                        <span>Remove font size</span>
+                    </label>
+                    <span class="bse-field-description">Strips only <code>size</code> from <code>&lt;font size="20"&gt;</code> (keeps <code>color</code>/<code>face</code>), e.g. <code>&lt;font size="20" color="red"&gt;</code> → <code>&lt;font color="red"&gt;</code>.</span>`;
+                section.appendChild(fontSizeDiv);
+
                 container.appendChild(section);
             }
         }
@@ -493,6 +505,8 @@ function betterSubtitleExtractorController(view) {
             if (chkOverwrite) chkOverwrite.checked = !!config.OverwriteExisting;
             const chkConvertToSrt = document.getElementById("chkConvertToSrt");
             if (chkConvertToSrt) chkConvertToSrt.checked = !!config.ConvertToSrt;
+            const chkRemoveFontSize = document.getElementById("chkRemoveFontSize");
+            if (chkRemoveFontSize) chkRemoveFontSize.checked = config.RemoveFontSize !== false;
         }
     }
 
@@ -573,6 +587,8 @@ function betterSubtitleExtractorController(view) {
             if (chkOverwrite) config.OverwriteExisting = chkOverwrite.checked;
             const chkConvertToSrt = document.getElementById("chkConvertToSrt");
             if (chkConvertToSrt) config.ConvertToSrt = chkConvertToSrt.checked;
+            const chkRemoveFontSize = document.getElementById("chkRemoveFontSize");
+            if (chkRemoveFontSize) config.RemoveFontSize = chkRemoveFontSize.checked;
         }
 
         return config;

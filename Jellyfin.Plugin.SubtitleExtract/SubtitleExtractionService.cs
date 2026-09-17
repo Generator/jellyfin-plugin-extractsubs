@@ -513,6 +513,40 @@ public class SubtitleExtractionService
             }
 
             File.Move(tempPath, outputPath, true);
+
+            if (config.RemoveFontSize)
+            {
+                try
+                {
+                    var text = await File.ReadAllTextAsync(outputPath, cancellationToken).ConfigureAwait(false);
+                    var stripped = System.Text.RegularExpressions.Regex.Replace(
+                        text,
+                        @"<font\s+[^>]*\bsize\s*=\s*""?\d+""?[^>]*>",
+                        m =>
+                        {
+                            var tag = m.Value;
+                            var cleaned = System.Text.RegularExpressions.Regex.Replace(tag, @"\s*size\s*=\s*""?\d+""?\s*", " ", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ");
+                            if (string.Equals(cleaned, "<font>", StringComparison.OrdinalIgnoreCase) || string.Equals(cleaned, "<font >", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return "<font>";
+                            }
+
+                            cleaned = cleaned.Replace("<font  ", "<font ", StringComparison.Ordinal).Replace(" >", ">", StringComparison.Ordinal);
+                            return cleaned;
+                        },
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    stripped = System.Text.RegularExpressions.Regex.Replace(stripped, @"<font>\s*</font>", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (!string.Equals(stripped, text, StringComparison.Ordinal))
+                    {
+                        await File.WriteAllTextAsync(outputPath, stripped, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _logger.LogWarning(ex, "Failed to strip font size from {OutputPath}", outputPath);
+                }
+            }
         }
         catch (Exception ex)
         {

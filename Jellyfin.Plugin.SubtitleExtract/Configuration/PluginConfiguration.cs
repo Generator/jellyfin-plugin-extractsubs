@@ -221,4 +221,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether to convert text-based subtitles to SRT format.
     /// </summary>
     public bool ConvertToSrt { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to remove font size from subtitles, keeping other font attributes.
+    /// </summary>
+    public bool RemoveFontSize { get; set; } = true;
 }
