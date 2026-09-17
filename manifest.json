@@ -9,6 +9,14 @@
     "owner": "jellyfin",
     "versions": [
       {
+        "version": "1.1.3.0",
+        "changelog": "Better Subtitle Extractor v1.1.3.0\n\nChanges since v1.1.2.0:\n- Add RemoveFontSize option (default true) with Output tab checkbox;\n  post-process extracted srt to remove only size= from <font> tags\n  (<font size=\"20\" color=\"red\"> -> <font color=\"red\">,\n  <font size=\"20\"> -> <font>), keeping color/face and </font>\n- Pin Jellyfin.Controller/Data to 12.0.0 (was 12.*-*) to fix\n  NotSupported (MediaBrowser.* 12.1.0.0 not on server 12.0.0)\n\nVerified: build -c Release 0 warnings, deployed 1.1.2.0 DLL Active,\nGogglebox S12E02 re-extract shows <font> kept / size= gone\n(2 dialogue-word hits only), next trigger Skipping existing.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/Generator/jellyfin-plugin-extractsubs/releases/download/v1.1.3.0/Jellyfin.Plugin.SubtitleExtract.zip",
+        "checksum": "2409e36ece8496217da722a4ecd0d66d",
+        "timestamp": "2026-09-17T20:10:18Z"
+      },
+      {
         "version": "1.1.2.0",
         "changelog": "Better Subtitle Extractor v1.1.2.0\n\nChanges since v1.1.1.0:\n- Always add .default when IncludeDefaultMarker is enabled (even if\n  IsDefault false) \u2014 IsForced/IsHearingImpaired (including title\n  contains SDH/hearing impaired) are excluded (eng.sdh.srt without\n  default)\n- Single file per (language, forced, SDH) \u2014 GroupBy lang+forced+IsSdh\n  (title SDH) -> one default.eng.srt / default.por.srt, no\n  0./1./2. numbering; skip if File.Exists && !OverwriteExisting\n- SDH detection via title (\"SDH\", \"hearing impaired\") in addition\n  to IsHearingImpaired flag \u2014 fixes Lanterns English (SDH) title\n  with HI 0 being treated as SDH (eng.sdh.srt)\n- Skip .strm / IsPlaceHolder placeholders (27 docker/media\n  trailers/YTS) to avoid ffprobe on external URLs \u2014 guard in\n  ExtractSubtitlesAsync\n- Subtitles-only single library filter, file: fallback via direct\n  ffprobe JSON parsing remains\n- Handle numeric versions in plugin repo manifest generation\n  (stringify versions before localeCompare) + keep\n  scripts/repo_manifest.py\n\nVerified: 1.1.2.0 test build 0 warnings, deployed to\ndocker/jellyfin/library/data/plugins/Better Subtitle Extractor_1.1.2.0/\n(99K), Lanterns S01E05 now default.eng.srt + eng.sdh.srt +\ndefault.por.srt single, next ItemUpdated correctly Skipping existing\n(no 0./1. storm). Merged master b7ae541 into dev.",
         "targetAbi": "12.0.0.0",
