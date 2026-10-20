@@ -411,8 +411,20 @@ function betterSubtitleExtractorController(view) {
                         <input is="emby-checkbox" type="checkbox" id="chkConvertToSrt"/>
                         <span>Convert to SRT</span>
                     </label>
-                    <span class="bse-field-description">Convert text-based subtitles to SRT format. Image-based subtitles are not affected.</span>`;
+                    <span class="bse-field-description">Also write a SubRip (SRT) copy of every text-based subtitle. Image-based subtitles are not affected.</span>`;
                 section.appendChild(convertSrtDiv);
+
+                // Keep original
+                const keepOriginalDiv = document.createElement("div");
+                keepOriginalDiv.className = "inputContainer";
+                keepOriginalDiv.style.marginTop = "16px";
+                keepOriginalDiv.innerHTML = `
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="chkKeepOriginal"/>
+                        <span>Keep original format</span>
+                    </label>
+                    <span class="bse-field-description">When converting, keep the original file too (e.g. <code>.ass</code>, <code>.vtt</code>) next to the <code>.srt</code>. The <code>.default</code> marker is only added to the original file.</span>`;
+                section.appendChild(keepOriginalDiv);
 
                 // Remove font size
                 const fontSizeDiv = document.createElement("div");
@@ -505,6 +517,8 @@ function betterSubtitleExtractorController(view) {
             if (chkOverwrite) chkOverwrite.checked = !!config.OverwriteExisting;
             const chkConvertToSrt = document.getElementById("chkConvertToSrt");
             if (chkConvertToSrt) chkConvertToSrt.checked = !!config.ConvertToSrt;
+            const chkKeepOriginal = document.getElementById("chkKeepOriginal");
+            if (chkKeepOriginal) chkKeepOriginal.checked = config.KeepOriginal !== false;
             const chkRemoveFontSize = document.getElementById("chkRemoveFontSize");
             if (chkRemoveFontSize) chkRemoveFontSize.checked = config.RemoveFontSize !== false;
         }
@@ -587,6 +601,8 @@ function betterSubtitleExtractorController(view) {
             if (chkOverwrite) config.OverwriteExisting = chkOverwrite.checked;
             const chkConvertToSrt = document.getElementById("chkConvertToSrt");
             if (chkConvertToSrt) config.ConvertToSrt = chkConvertToSrt.checked;
+            const chkKeepOriginal = document.getElementById("chkKeepOriginal");
+            if (chkKeepOriginal) config.KeepOriginal = chkKeepOriginal.checked;
             const chkRemoveFontSize = document.getElementById("chkRemoveFontSize");
             if (chkRemoveFontSize) config.RemoveFontSize = chkRemoveFontSize.checked;
         }

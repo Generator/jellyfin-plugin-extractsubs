@@ -223,6 +223,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool ConvertToSrt { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the original subtitle file is kept next to the converted SRT copy.
+    /// </summary>
+    public bool KeepOriginal { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether to remove font size from subtitles, keeping other font attributes.
     /// </summary>
     public bool RemoveFontSize { get; set; } = true;

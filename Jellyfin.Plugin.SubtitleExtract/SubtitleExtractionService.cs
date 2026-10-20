@@ -132,19 +132,36 @@ public class SubtitleExtractionService
 
             foreach (var stream in deduped)
             {
-                var baseFileName = ExternalSubtitleNaming.BuildFileName(mediaInfo.Path, stream, config, _localization);
-                var outputPath = Path.Combine(Path.GetDirectoryName(mediaInfo.Path)!, baseFileName);
-                if (File.Exists(outputPath) && !config.OverwriteExisting)
+                foreach (var output in ResolveOutputs(stream, config))
                 {
-                    if (_logger.IsEnabled(LogLevel.Information))
+                    var baseFileName = ExternalSubtitleNaming.BuildFileName(
+                        mediaInfo.Path,
+                        stream,
+                        config,
+                        _localization,
+                        extensionOverride: output.Extension,
+                        includeDefaultMarker: output.IsOriginalFormat);
+                    var outputPath = Path.Combine(Path.GetDirectoryName(mediaInfo.Path)!, baseFileName);
+                    if (File.Exists(outputPath) && !config.OverwriteExisting)
                     {
-                        _logger.LogInformation("Skipping existing subtitle file: {OutputPath}", outputPath);
+                        if (_logger.IsEnabled(LogLevel.Information))
+                        {
+                            _logger.LogInformation("Skipping existing subtitle file: {OutputPath}", outputPath);
+                        }
+
+                        continue;
                     }
 
-                    continue;
+                    try
+                    {
+                        await this.ExtractStreamAsync(item, mediaInfo, stream, config, outputPath, output, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (!output.IsOriginalFormat && ex is not OperationCanceledException)
+                    {
+                        // The original subtitle was already published; keep it when the converted copy fails.
+                        _logger.LogError(ex, "SRT conversion failed for {Video}, keeping the original subtitle", mediaInfo.Path);
+                    }
                 }
-
-                await this.ExtractStreamAsync(item, mediaInfo, stream, config, outputPath, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -428,6 +445,7 @@ public class SubtitleExtractionService
         MediaStream stream,
         PluginConfiguration config,
         string outputPath,
+        SubtitleOutput output,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mediaSource);
@@ -448,11 +466,6 @@ public class SubtitleExtractionService
         // Write to a unique temporary file first, then atomically publish it to the final
         // path so a failed or interrupted extraction never leaves a partial subtitle behind.
         var tempPath = string.Format(CultureInfo.InvariantCulture, "{0}.{1}.tmp", outputPath, Guid.NewGuid().ToString("N"));
-        var outputCodec = IsCodecCopyable(stream.Codec) ? "copy" : GetOutputCodec(stream.Codec);
-        if (config.ConvertToSrt && !IsImageBasedSubtitleCodec(stream.Codec))
-        {
-            outputCodec = "srt";
-        }
 
         var arguments = new List<string>
         {
@@ -464,43 +477,13 @@ public class SubtitleExtractionService
             "-an",
             "-vn",
             "-c:s",
-            outputCodec,
+            output.Codec,
+            "-f",
+            output.Format,
+            "-flush_packets",
+            "1",
+            tempPath,
         };
-
-        string ffmpegFormat;
-        if (MediaStream.IsVobSubFormat(stream.Codec))
-        {
-            ffmpegFormat = "matroska";
-        }
-        else if (string.Equals(outputCodec, "copy", StringComparison.OrdinalIgnoreCase))
-        {
-            // The temp output file uses a ".tmp" extension, so ffmpeg cannot infer the
-            // muxer from it. Map the source codec to its ffmpeg format name explicitly.
-            ffmpegFormat = stream.Codec?.ToLowerInvariant() switch
-            {
-                "subrip" or "srt" => "srt",
-                "ass" or "ssa" => "ass",
-                "webvtt" or "vtt" => "webvtt",
-                "mov_text" => "mov_text",
-                "pgssub" or "dvbsub" or "dvdsub" => "matroska",
-                _ => throw new NotSupportedException(string.Format(CultureInfo.InvariantCulture, "Unsupported subtitle codec for copy: {0}", stream.Codec)),
-            };
-        }
-        else if (config.ConvertToSrt && !IsImageBasedSubtitleCodec(stream.Codec))
-        {
-            ffmpegFormat = "srt";
-        }
-        else
-        {
-            ffmpegFormat = outputCodec;
-        }
-
-        arguments.Add("-f");
-        arguments.Add(ffmpegFormat);
-
-        arguments.Add("-flush_packets");
-        arguments.Add("1");
-        arguments.Add(tempPath);
 
         try
         {
@@ -645,44 +628,40 @@ public class SubtitleExtractionService
         }
     }
 
-    private static bool IsCodecCopyable(string? codec)
+    /// <summary>
+    /// Resolves the subtitle files to write for a stream: the original format and, when
+    /// conversion is enabled, an additional SRT copy.
+    /// </summary>
+    /// <param name="stream">The subtitle stream.</param>
+    /// <param name="config">The plugin configuration.</param>
+    /// <returns>The outputs to produce, original format first.</returns>
+    private static SubtitleOutput[] ResolveOutputs(MediaStream stream, PluginConfiguration config)
     {
-        return string.Equals(codec, "ass", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "ssa", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "srt", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "subrip", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "pgssub", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "dvbsub", StringComparison.OrdinalIgnoreCase)
-            || MediaStream.IsVobSubFormat(codec);
-    }
+        var codec = stream.Codec;
+        var extension = ExternalSubtitleNaming.GetFileExtension(stream);
 
-    private static string GetOutputCodec(string? codec)
-    {
-        if (string.Equals(codec, "ass", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "ssa", StringComparison.OrdinalIgnoreCase))
+        // Image-based subtitles cannot be converted; they keep their native container.
+        if (IsImageBasedSubtitleCodec(codec))
         {
-            return "ass";
+            return [new SubtitleOutput(extension, "copy", "matroska", true)];
         }
 
-        if (string.Equals(codec, "webvtt", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "vtt", StringComparison.OrdinalIgnoreCase))
+        var native = codec?.ToLowerInvariant() switch
         {
-            return "webvtt";
+            "ass" or "ssa" => new SubtitleOutput(extension, "copy", "ass", true),
+            "webvtt" or "vtt" => new SubtitleOutput(extension, "webvtt", "webvtt", true),
+            "srt" or "subrip" => new SubtitleOutput(extension, "copy", "srt", true),
+            _ => new SubtitleOutput(extension, "srt", "srt", true),
+        };
+
+        // A stream that is already SRT needs no converted duplicate.
+        if (!config.ConvertToSrt || string.Equals(extension, "srt", StringComparison.Ordinal))
+        {
+            return [native];
         }
 
-        if (string.Equals(codec, "srt", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(codec, "subrip", StringComparison.OrdinalIgnoreCase))
-        {
-            return "srt";
-        }
-
-        // For other text-based codecs, convert to SRT.
-        if (!IsImageBasedSubtitleCodec(codec))
-        {
-            return "srt";
-        }
-
-        throw new NotSupportedException(string.Format(CultureInfo.InvariantCulture, "Unsupported subtitle codec: {0}", codec));
+        var srt = new SubtitleOutput("srt", "srt", "srt", false);
+        return config.KeepOriginal ? [native, srt] : [srt];
     }
 
     private static bool IsImageBasedSubtitleCodec(string? codec)
@@ -722,6 +701,15 @@ public class SubtitleExtractionService
             }
         }
     }
+
+    /// <summary>
+    /// Describes a subtitle file to produce.
+    /// </summary>
+    /// <param name="Extension">File extension, without the leading dot.</param>
+    /// <param name="Codec">The ffmpeg subtitle codec argument.</param>
+    /// <param name="Format">The ffmpeg output format argument.</param>
+    /// <param name="IsOriginalFormat">Whether this output keeps the stream's original format.</param>
+    private readonly record struct SubtitleOutput(string Extension, string Codec, string Format, bool IsOriginalFormat);
 
     private sealed class PathLockEntry : IDisposable
     {

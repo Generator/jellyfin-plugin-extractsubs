@@ -20,15 +20,24 @@ public static class ExternalSubtitleNaming
     /// <param name="config">The plugin configuration.</param>
     /// <param name="localization">The localization manager used to normalize language codes.</param>
     /// <param name="forceDefault">Kept for compatibility; when IncludeDefaultMarker is true, .default is always added regardless of IsDefault.</param>
+    /// <param name="extensionOverride">Overrides the extension derived from the stream codec (used for converted copies).</param>
+    /// <param name="includeDefaultMarker">When false, the .default marker is omitted even if the configuration enables it.</param>
     /// <returns>The external subtitle file name.</returns>
-    public static string BuildFileName(string videoPath, MediaStream stream, PluginConfiguration config, ILocalizationManager localization, bool forceDefault = false)
+    public static string BuildFileName(
+        string videoPath,
+        MediaStream stream,
+        PluginConfiguration config,
+        ILocalizationManager localization,
+        bool forceDefault = false,
+        string? extensionOverride = null,
+        bool includeDefaultMarker = true)
     {
         var basename = Path.GetFileNameWithoutExtension(videoPath);
         var language = NormalizeLanguage(stream.Language, localization);
-        var extension = GetFileExtension(stream);
+        var extension = extensionOverride ?? GetFileExtension(stream);
 
         var name = basename;
-        if (config.IncludeDefaultMarker && !stream.IsForced && !IsSdh(stream))
+        if (includeDefaultMarker && config.IncludeDefaultMarker && !stream.IsForced && !IsSdh(stream))
         {
             name += ".default";
         }
@@ -48,24 +57,12 @@ public static class ExternalSubtitleNaming
         return name;
     }
 
-    private static string NormalizeLanguage(string? language, ILocalizationManager localization)
-    {
-        if (string.IsNullOrEmpty(language))
-        {
-            return "und";
-        }
-
-        var culture = localization.FindLanguageInfo(language);
-        if (culture?.ThreeLetterISOLanguageName is not null)
-        {
-            return culture.ThreeLetterISOLanguageName;
-        }
-
-        // Fallback: if it's already 3 letters, use it; otherwise lowercase the raw value.
-        return language.Length == 3 ? language.ToLowerInvariant() : language.ToLowerInvariant();
-    }
-
-    private static string GetFileExtension(MediaStream stream)
+    /// <summary>
+    /// Gets the file extension that matches the stream's own (unconverted) format.
+    /// </summary>
+    /// <param name="stream">The subtitle stream.</param>
+    /// <returns>The file extension without the leading dot.</returns>
+    internal static string GetFileExtension(MediaStream stream)
     {
         if (string.Equals(stream.Codec, "pgssub", StringComparison.OrdinalIgnoreCase))
         {
@@ -83,7 +80,30 @@ public static class ExternalSubtitleNaming
             return "ass";
         }
 
+        if (string.Equals(stream.Codec, "webvtt", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(stream.Codec, "vtt", StringComparison.OrdinalIgnoreCase))
+        {
+            return "vtt";
+        }
+
         return "srt";
+    }
+
+    private static string NormalizeLanguage(string? language, ILocalizationManager localization)
+    {
+        if (string.IsNullOrEmpty(language))
+        {
+            return "und";
+        }
+
+        var culture = localization.FindLanguageInfo(language);
+        if (culture?.ThreeLetterISOLanguageName is not null)
+        {
+            return culture.ThreeLetterISOLanguageName;
+        }
+
+        // Fallback: if it's already 3 letters, use it; otherwise lowercase the raw value.
+        return language.Length == 3 ? language.ToLowerInvariant() : language.ToLowerInvariant();
     }
 
     private static bool IsSdh(MediaStream stream)
